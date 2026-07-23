@@ -16,6 +16,33 @@ backend/                   # microservicios Node.js/TypeScript, dockerizados
 docs/ARQUITECTURA.md       # decisiones técnicas y trade-offs
 .github/workflows/         # CI (activo) y despliegue a staging/producción (preparado, comentado)
 ```
+## Cómo abrir el proyecto iOS en Xcode
+
+Este repo no incluye un `.xcodeproj` (son binarios/XML frágiles y no se
+generan bien a mano). Se usa **XcodeGen**, que construye el `.xcodeproj` a
+partir de `project.yml`:
+
+```bash
+brew install xcodegen
+cd Asocia
+xcodegen generate
+open Asocia.xcodeproj
+```
+
+Cada vez que añadas/quites un archivo `.swift`, vuelve a ejecutar
+`xcodegen generate`.
+
+### Antes de compilar
+
+1. En `project.yml`, pon tu `DEVELOPMENT_TEAM` y ajusta
+   `PRODUCT_BUNDLE_IDENTIFIER` si `org.itb.asocia` ya no está libre.
+2. Añade tu icono real en `Assets.xcassets/AppIcon.appiconset` y, si quieres
+   un logo propio en el splash, una imagen llamada `AsociaLogo` en
+   `Assets.xcassets`.
+3. Los permisos de cámara (foto del socio) y calendario (exportar eventos)
+   ya están declarados en `project.yml`.
+
+
 
 ## Ejecutar la app: con servicios mockeados o con el backend real
 
@@ -61,31 +88,6 @@ de que exista un backend desplegado de verdad, actualiza las URLs en
 `AppEnvironment.swift` (`case .staging` / `case .production`) por las
 reales.
 
-## Cómo abrir el proyecto iOS en Xcode
-
-Este repo no incluye un `.xcodeproj` (son binarios/XML frágiles y no se
-generan bien a mano). Se usa **XcodeGen**, que construye el `.xcodeproj` a
-partir de `project.yml`:
-
-```bash
-brew install xcodegen
-cd Asocia
-xcodegen generate
-open Asocia.xcodeproj
-```
-
-Cada vez que añadas/quites un archivo `.swift`, vuelve a ejecutar
-`xcodegen generate`.
-
-### Antes de compilar
-
-1. En `project.yml`, pon tu `DEVELOPMENT_TEAM` y ajusta
-   `PRODUCT_BUNDLE_IDENTIFIER` si `org.itb.asocia` ya no está libre.
-2. Añade tu icono real en `Assets.xcassets/AppIcon.appiconset` y, si quieres
-   un logo propio en el splash, una imagen llamada `AsociaLogo` en
-   `Assets.xcassets`.
-3. Los permisos de cámara (foto del socio) y calendario (exportar eventos)
-   ya están declarados en `project.yml`.
 
 ## Backend: arrancarlo, probarlo, desplegarlo
 
