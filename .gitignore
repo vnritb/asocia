@@ -4,6 +4,8 @@ Asocia.xcodeproj/
 xcuserdata/
 DerivedData/
 .build/
+.swiftpm/
+*.xcuserstate
 *.ipa
 *.dSYM.zip
 *.dSYM
@@ -18,7 +20,15 @@ backend/**/*.tsbuildinfo
 backend/**/.env
 backend/**/*.log
 npm-debug.log*
+docker-compose.override.yml
+
+# Editores
+.vscode/
+.idea/
 
 # Secretos / entornos locales
 *.env
 .env.local
+.env.*.local
+*.pem
+*.key
