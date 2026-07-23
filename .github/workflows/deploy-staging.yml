@@ -1,0 +1,69 @@
+name: Deploy backend to Staging
+
+# ---------------------------------------------------------------------------
+# PREPARADO PERO INACTIVO A PROPÓSITO. No hay despliegue automático en push:
+# solo se puede lanzar a mano desde la pestaña "Actions" de GitHub
+# (workflow_dispatch), y aun así no hace nada real todavía — todos los pasos
+# de despliegue están comentados más abajo, a la espera de:
+#   1) Elegir el proveedor definitivo (ver docs/ARQUITECTURA.md, sección 6 —
+#      la recomendación de partida es Render).
+#   2) Crear los 4 Web Services + la base de datos en ese proveedor.
+#   3) Añadir los secretos correspondientes en GitHub:
+#      Settings -> Secrets and variables -> Actions.
+#   4) Descomentar los pasos de este archivo y el trigger `push` de abajo.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch: {}
+  # Descomenta esto cuando quieras desplegar automáticamente a staging en
+  # cada push a main (una vez completados los 4 pasos de arriba):
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Recordatorio
+        run: |
+          echo "Despliegue a staging todavía no configurado."
+          echo "Ver docs/ARQUITECTURA.md, sección 13 (Control de versiones y CI/CD)."
+
+      # --- Plantilla de despliegue a Render (descomentar y adaptar) ---------
+      # Requiere los secretos: RENDER_API_KEY y un *_SERVICE_ID por servicio.
+      # El "deploy hook" de Render simplemente dispara un nuevo build+deploy
+      # de la última imagen a partir del Dockerfile de cada servicio.
+      #
+      # - name: Deploy api-gateway
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_STAGING_API_GATEWAY_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Deploy membership-service
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_STAGING_MEMBERSHIP_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Deploy chat-service
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_STAGING_CHAT_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Deploy translation-service
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_STAGING_TRANSLATION_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Esperar a que el API Gateway responda
+      #   run: |
+      #     curl --fail --retry 15 --retry-delay 20 --retry-connrefused \
+      #       https://asocia-api-staging.onrender.com/healthz

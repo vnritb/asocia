@@ -1,0 +1,118 @@
+version: "3.9"
+
+# Entorno de DESARROLLO LOCAL de los microservicios de Asocia (el único
+# entorno que se levanta con este fichero). Staging y producción se
+# despliegan como servicios gestionados independientes — ver
+# backend/README.md y .github/workflows/deploy-*.yml (preparados pero
+# comentados a propósito, todavía no se despliega nada de verdad).
+#
+# Toda la parte no-móvil del proyecto vive aquí dentro: los 4 microservicios
+# están dockerizados (Dockerfile propio cada uno) y no hay ninguna otra
+# pieza de infraestructura fuera de este compose.
+
+x-node-healthcheck: &node-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 10s
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: asocia
+      POSTGRES_PASSWORD: asocia
+      POSTGRES_DB: asocia
+    ports:
+      - "5432:5432"
+    volumes:
+      - asocia_pgdata:/var/lib/postgresql/data
+      - ./scripts/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U asocia"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  membership-service:
+    build:
+      context: .
+      dockerfile: services/membership-service/Dockerfile
+    environment:
+      DATABASE_URL: postgres://asocia:asocia@postgres:5432/asocia
+      PORT: "4001"
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-changeme-admin-key}
+      CHAT_SERVICE_URL: http://chat-service:4002
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme-internal-key}
+    ports:
+      - "4001:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4001/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: services/chat-service/Dockerfile
+    environment:
+      DATABASE_URL: postgres://asocia:asocia@postgres:5432/asocia
+      PORT: "4002"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme-internal-key}
+    ports:
+      - "4002:4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4002/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  translation-service:
+    build:
+      context: .
+      dockerfile: services/translation-service/Dockerfile
+    environment:
+      DATABASE_URL: postgres://asocia:asocia@postgres:5432/asocia
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      PORT: "4003"
+    ports:
+      - "4003:4003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4003/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    environment:
+      PORT: "4000"
+      MEMBERSHIP_SERVICE_URL: http://membership-service:4001
+      CHAT_SERVICE_URL: http://chat-service:4002
+      TRANSLATION_SERVICE_URL: http://translation-service:4003
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme-internal-key}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-changeme-admin-key}
+    ports:
+      - "4000:4000"
+    depends_on:
+      membership-service:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+      translation-service:
+        condition: service_healthy
+    healthcheck:
+      <<: *node-healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+
+volumes:
+  asocia_pgdata:

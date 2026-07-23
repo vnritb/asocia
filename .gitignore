@@ -1,0 +1,24 @@
+# Xcode / iOS
+Asocia.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+.build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+
+# Backend (Node.js)
+backend/**/node_modules/
+backend/**/dist/
+backend/**/*.tsbuildinfo
+backend/**/.env
+backend/**/*.log
+npm-debug.log*
+
+# Secretos / entornos locales
+*.env
+.env.local

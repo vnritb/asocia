@@ -1,0 +1,21 @@
+{
+  "name": "asocia-backend",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "build:shared": "npm run build --workspace=@asocia/shared",
+    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
+    "build": "npm run build:shared && npm run build --workspaces --if-present",
+    "dev:gateway": "npm run dev --workspace=services/api-gateway",
+    "dev:membership": "npm run dev --workspace=services/membership-service",
+    "dev:chat": "npm run dev --workspace=services/chat-service",
+    "dev:translation": "npm run dev --workspace=services/translation-service"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

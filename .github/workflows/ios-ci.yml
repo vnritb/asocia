@@ -1,0 +1,55 @@
+name: iOS CI
+
+# Compila y testea la app en cada push/PR que toque el proyecto Xcode.
+# Corre en modo "Asocia (Mock)": no depende de que el backend esté
+# levantado (ver docs/ARQUITECTURA.md, sección 12 "Entornos").
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Asocia/**"
+      - "AsociaTests/**"
+      - "AsociaUITests/**"
+      - "project.yml"
+      - ".github/workflows/ios-ci.yml"
+  pull_request:
+    paths:
+      - "Asocia/**"
+      - "AsociaTests/**"
+      - "AsociaUITests/**"
+      - "project.yml"
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      - name: Generar Asocia.xcodeproj a partir de project.yml
+        run: xcodegen generate
+
+      - name: Mostrar versión de Xcode disponible
+        run: xcodebuild -version
+
+      - name: Build + tests unitarios (Swift Testing, scheme Mock)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Asocia.xcodeproj \
+            -scheme "Asocia (Mock)" \
+            -destination "platform=iOS Simulator,name=iPhone 16,OS=latest" \
+            -only-testing:AsociaTests \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Subir resultados de test si algo falla
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-logs
+          path: ~/Library/Logs/DiagnosticReports
+          if-no-files-found: ignore

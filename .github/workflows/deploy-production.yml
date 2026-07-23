@@ -1,0 +1,63 @@
+name: Deploy backend to Production
+
+# ---------------------------------------------------------------------------
+# PREPARADO PERO INACTIVO A PROPÓSITO — igual que deploy-staging.yml, pero
+# apuntando a los servicios de producción. Además usa el "environment"
+# de GitHub `production`, donde conviene configurar un revisor obligatorio
+# (Settings -> Environments -> production -> Required reviewers) para que
+# nadie despliegue a producción sin una aprobación explícita, ni siquiera
+# lanzándolo a mano por error.
+#
+# Pasos antes de activarlo: los mismos 4 que en deploy-staging.yml, pero con
+# los Web Services/base de datos de producción y sus propios secretos.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch: {}
+  # Este si NO se recomienda dispararlo automáticamente en push; mejor un
+  # tag de versión explícito, cuando toque:
+  # push:
+  #   tags:
+  #     - "v*"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Recordatorio
+        run: |
+          echo "Despliegue a producción todavía no configurado."
+          echo "Ver docs/ARQUITECTURA.md, sección 13 (Control de versiones y CI/CD)."
+
+      # --- Plantilla de despliegue a Render (descomentar y adaptar) ---------
+      # - name: Deploy api-gateway
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_PROD_API_GATEWAY_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Deploy membership-service
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_PROD_MEMBERSHIP_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Deploy chat-service
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_PROD_CHAT_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Deploy translation-service
+      #   run: |
+      #     curl --fail -X POST \
+      #       "https://api.render.com/v1/services/${{ secrets.RENDER_PROD_TRANSLATION_ID }}/deploys" \
+      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
+      #
+      # - name: Esperar a que el API Gateway responda
+      #   run: |
+      #     curl --fail --retry 15 --retry-delay 20 --retry-connrefused \
+      #       https://asocia-api.onrender.com/healthz
