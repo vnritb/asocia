@@ -23,6 +23,7 @@ struct MembershipButtonView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("asocia_mainButton")
             .accessibilityHint(loc.t("membershipButton.accessibilityHint"))
 
             // Botón de ajustes (idioma) accesible incluso antes de ser socio.

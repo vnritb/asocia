@@ -6,6 +6,16 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+# Archivos que se ven en el navegador de Xcode solo como referencia (no se
+# compilan ni pertenecen a ningún target) — así puedes abrir el README o la
+# documentación sin salir de Xcode.
+fileGroups:
+  - README.md
+  - docs
+  - backend
+  - .github
+  - project.yml
+
 settings:
   base:
     SWIFT_VERSION: "6.0"

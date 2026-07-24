@@ -92,6 +92,7 @@ struct MemberProfileView: View {
                         Task { await syncEngine?.syncNow() }
                     }
                     .disabled(syncEngine?.isSyncing ?? true)
+                    .accessibilityIdentifier("profile_syncNowButton")
                 }
             }
             .navigationTitle(loc.t("profile.navTitle"))
@@ -107,6 +108,8 @@ struct MemberProfileView: View {
                         } label: {
                             Image(systemName: "gearshape")
                         }
+                        .accessibilityIdentifier("profile_settingsButton")
+                        .accessibilityLabel("Ajustes")
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -114,6 +117,7 @@ struct MemberProfileView: View {
                         if isEditing { saveChanges() }
                         isEditing.toggle()
                     }
+                    .accessibilityIdentifier("profile_editButton")
                 }
             }
             .sheet(isPresented: $showSettings) {

@@ -77,10 +77,13 @@ struct SignupView: View {
                 Section {
                     TextField(loc.t("signup.field.firstName"), text: $firstName)
                         .textContentType(.givenName)
+                        .accessibilityIdentifier("signup_firstName")
                     TextField(loc.t("signup.field.firstSurname"), text: $firstSurname)
                         .textContentType(.familyName)
+                        .accessibilityIdentifier("signup_firstSurname")
                     TextField(loc.t("signup.field.secondSurname"), text: $secondSurname)
                         .textContentType(.familyName)
+                        .accessibilityIdentifier("signup_secondSurname")
                     Toggle(loc.t("signup.field.birthDateToggle"), isOn: $hasBirthDate.animation())
                     if hasBirthDate {
                         DatePicker(
@@ -101,16 +104,20 @@ struct SignupView: View {
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("signup_email")
                     TextField(loc.t("signup.field.email2"), text: $secondaryEmail)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
+                        .accessibilityIdentifier("signup_email2")
                     TextField(loc.t("signup.field.mobilePhone"), text: $mobilePhone)
                         .textContentType(.telephoneNumber)
                         .keyboardType(.phonePad)
+                        .accessibilityIdentifier("signup_mobilePhone")
                     TextField(loc.t("signup.field.landlinePhone"), text: $landlinePhone)
                         .textContentType(.telephoneNumber)
                         .keyboardType(.phonePad)
+                        .accessibilityIdentifier("signup_landlinePhone")
                 } footer: {
                     Text(loc.t("signup.contactFooter"))
                 }
@@ -186,10 +193,12 @@ struct SignupView: View {
                         }
                     }
                     .disabled(!isFormValid || isProcessing)
+                    .accessibilityIdentifier("signup_submitButton")
                 }
             }
             .navigationTitle(loc.t("signup.navTitle"))
             .navigationBarTitleDisplayMode(.inline)
+            .accessibilityIdentifier("signup_form")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(loc.t("common.cancel")) { dismiss() }

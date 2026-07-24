@@ -4,7 +4,7 @@ import SwiftData
 @main
 struct AsociaApp: App {
 
-    let modelContainer = PersistenceController.shared
+    let modelContainer: ModelContainer
 
     private let environment: AppEnvironment
     private let apiClient: MembershipAPIClient
@@ -22,6 +22,20 @@ struct AsociaApp: App {
     /// app solo conoce los protocolos (`MembershipAPIClient`,
     /// `ChatServicing`, `TranslationServicing`), nunca la implementación.
     init() {
+        // Limpiar datos persistentes y usar contenedor en memoria si se ejecutan UI tests
+        #if DEBUG
+        let isUITesting = CommandLine.arguments.contains("-UITEST_RESET_STATE")
+        if isUITesting {
+            print("🧪 UI Test mode: Usando contenedor en memoria y limpiando UserDefaults...")
+            UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
+            self.modelContainer = PersistenceController.inMemoryContainer()
+        } else {
+            self.modelContainer = PersistenceController.shared
+        }
+        #else
+        self.modelContainer = PersistenceController.shared
+        #endif
+        
         let env = AppEnvironment.current
         environment = env
 
@@ -63,6 +77,7 @@ struct AsociaApp: App {
             .task {
                 #if DEBUG
                 print("🚀 AsociaApp.task iniciado")
+                let isUITesting = CommandLine.arguments.contains("-UITEST_RESET_STATE")
                 #endif
                 // El SyncEngine necesita el ModelContext, que solo está
                 // disponible una vez el WindowGroup ha inyectado el
@@ -78,15 +93,23 @@ struct AsociaApp: App {
                 }
 
                 #if DEBUG
-                print("   Esperando 1.2s para ocultar splash...")
-                #endif
+                if isUITesting {
+                    print("   🧪 UI Test mode: Sin splash")
+                    showSplash = false
+                } else {
+                    print("   Esperando 1.2s para ocultar splash...")
+                    try? await Task.sleep(for: .seconds(1.2))
+                    withAnimation(.easeOut(duration: 0.4)) {
+                        showSplash = false
+                        print("   ✅ Splash oculto, mostrando RootView")
+                    }
+                }
+                #else
                 try? await Task.sleep(for: .seconds(1.2))
                 withAnimation(.easeOut(duration: 0.4)) {
                     showSplash = false
-                    #if DEBUG
-                    print("   ✅ Splash oculto, mostrando RootView")
-                    #endif
                 }
+                #endif
             }
             .environment(\.syncEngine, syncEngine)
             .environment(\.apiClient, apiClient)

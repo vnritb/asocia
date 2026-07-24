@@ -75,7 +75,7 @@ final class MockMemberDataSource: MemberDataSource {
     }
 }
 
-@Suite("SyncEngine")
+@Suite("SyncEngine") @MainActor
 struct SyncEngineTests {
 
     private func sampleDTO(id: UUID = UUID(), status: MembershipStatus = .active) -> MemberDTO {
@@ -92,7 +92,6 @@ struct SyncEngineTests {
     }
 
     @Test("syncNow() crea localment el soci que ja existeix al servidor") 
-    @MainActor
     func pullCreatesLocalMemberWhenMissing() async throws {
         let dataSource = MockMemberDataSource()
         let remote = sampleDTO(status: .active)
@@ -110,7 +109,6 @@ struct SyncEngineTests {
     }
 
     @Test("syncNow() puja els canvis locals pendents i els marca synced")
-    @MainActor
     func pushUploadsPendingLocalChanges() async throws {
         let dataSource = MockMemberDataSource()
         let id = UUID()
@@ -135,7 +133,6 @@ struct SyncEngineTests {
     }
 
     @Test("Un fallo de xarxa deixa el soci marcat com syncFailed, sense perdre les dades locals")
-    @MainActor
     func networkFailureMarksSyncFailed() async throws {
         let dataSource = MockMemberDataSource()
         let local = Member(
