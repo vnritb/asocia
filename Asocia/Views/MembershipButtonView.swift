@@ -43,7 +43,9 @@ struct MembershipButtonView: View {
             SettingsView()
         }
         .onAppear {
+            #if DEBUG
             print("🔵 MembershipButtonView apareció")
+            #endif
         }
     }
 }

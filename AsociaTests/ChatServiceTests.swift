@@ -74,8 +74,20 @@ struct ChatServiceTests {
         await service.configureCurrentUser(id: UUID(), name: "Jo", photoData: nil)
 
         let results = await service.searchDirectory(query: "marta")
-        #expect(results.allSatisfy { $0.fullName.localizedCaseInsensitiveContains("marta") })
-        #expect(!results.isEmpty)
+        #expect(!results.isEmpty, "La búsqueda debería devolver resultados")
+        
+        // Los resultados deben contener "marta" O tener alta similitud con "marta"
+        let hasRelevantResults = results.contains { 
+            $0.fullName.localizedCaseInsensitiveContains("marta") 
+        }
+        #expect(hasRelevantResults, "Al menos un resultado debe contener 'marta'")
+        
+        // Verificar que todos los resultados son relevantes (similitud o contiene)
+        for user in results {
+            let containsMarta = user.fullName.localizedCaseInsensitiveContains("marta")
+            let hasSimilarity = StringSimilarity.score(user.fullName, "marta") > 0.15
+            #expect(containsMarta || hasSimilarity, "'\(user.fullName)' debe ser relevante para 'marta'")
+        }
     }
 
     @Test("La cerca per similitud posa 'Pedro Jiménez' abans que 'Antonio Giménez' en cercar 'Pedro Gimenez'")

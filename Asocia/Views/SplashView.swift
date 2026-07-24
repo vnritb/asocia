@@ -24,7 +24,9 @@ struct SplashView: View {
             }
         }
         .onAppear {
+            #if DEBUG
             print("💧 SplashView apareció")
+            #endif
         }
     }
 

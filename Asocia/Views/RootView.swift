@@ -26,6 +26,7 @@ struct RootView: View {
         }
         .animation(.default, value: currentMember?.membershipStatus)
         .onAppear {
+            #if DEBUG
             print("✅ RootView apareció")
             print("   Miembros encontrados: \(members.count)")
             if let member = currentMember {
@@ -33,6 +34,7 @@ struct RootView: View {
             } else {
                 print("   Sin miembro → mostrando botón Asocia")
             }
+            #endif
         }
     }
 }

@@ -3,6 +3,46 @@ import Network
 import SwiftData
 import os.log
 
+/// Protocolo para abstraer el acceso a datos de miembros.
+/// Facilita los tests aislando las llamadas a SwiftData.
+@MainActor
+protocol MemberDataSource {
+    func fetchPendingMembers() throws -> [Member]
+    func fetchMember(byID id: UUID) throws -> Member?
+    func insertMember(_ member: Member)
+    func save() throws
+}
+
+/// Implementación por defecto que usa SwiftData directamente.
+@MainActor
+final class SwiftDataMemberSource: MemberDataSource {
+    private let modelContext: ModelContext
+    
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
+    }
+    
+    func fetchPendingMembers() throws -> [Member] {
+        let descriptor = FetchDescriptor<Member>()
+        let allMembers = try modelContext.fetch(descriptor)
+        return allMembers.filter { $0.syncStatus == .pendingUpload }
+    }
+    
+    func fetchMember(byID id: UUID) throws -> Member? {
+        let descriptor = FetchDescriptor<Member>()
+        let allMembers = try modelContext.fetch(descriptor)
+        return allMembers.first(where: { $0.id == id })
+    }
+    
+    func insertMember(_ member: Member) {
+        modelContext.insert(member)
+    }
+    
+    func save() throws {
+        try modelContext.save()
+    }
+}
+
 /// Motor de sincronització offline-first entre SwiftData (local) i el
 /// backend de microserveis.
 ///
@@ -23,7 +63,7 @@ final class SyncEngine {
     private static let logger = Logger(subsystem: "org.itb.asocia", category: "Sync")
 
     private let apiClient: MembershipAPIClient
-    private let modelContext: ModelContext
+    private let dataSource: MemberDataSource
     private let pathMonitor = NWPathMonitor()
     private let monitorQueue = DispatchQueue(label: "org.itb.asocia.network-monitor")
 
@@ -35,9 +75,16 @@ final class SyncEngine {
     private var syncTask: Task<Void, Never>?
     private let syncInterval: TimeInterval = 60 * 5 // 5 minuts
 
+    /// Inicializador principal para producción
     init(apiClient: MembershipAPIClient, modelContext: ModelContext) {
         self.apiClient = apiClient
-        self.modelContext = modelContext
+        self.dataSource = SwiftDataMemberSource(modelContext: modelContext)
+    }
+    
+    /// Inicializador para tests con un dataSource personalizado
+    init(apiClient: MembershipAPIClient, dataSource: MemberDataSource) {
+        self.apiClient = apiClient
+        self.dataSource = dataSource
     }
 
     /// Arrenca el monitor de xarxa i el bucle de sincronització periòdica.
@@ -91,10 +138,7 @@ final class SyncEngine {
     }
 
     private func pushPendingChanges() async throws {
-        let descriptor = FetchDescriptor<Member>(
-            predicate: #Predicate { $0.syncStatusRaw == "pendingUpload" }
-        )
-        let pending = try modelContext.fetch(descriptor)
+        let pending = try dataSource.fetchPendingMembers()
         guard !pending.isEmpty else { return }
 
         for member in pending {
@@ -103,24 +147,22 @@ final class SyncEngine {
             member.apply(dto: updated)
             member.syncStatus = .synced
         }
-        try modelContext.save()
+        try dataSource.save()
     }
 
     private func pullLatestFromServer() async throws {
         let remote = try await apiClient.fetchCurrentMember()
-
-        let descriptor = FetchDescriptor<Member>(
-            predicate: #Predicate { $0.id == remote.id }
-        )
-        if let local = try modelContext.fetch(descriptor).first {
+        let local = try dataSource.fetchMember(byID: remote.id)
+        
+        if let local {
             resolveConflict(local: local, remote: remote)
         } else {
             let member = Member(id: remote.id, firstName: remote.firstName, firstSurname: remote.firstSurname)
             member.apply(dto: remote)
             member.syncStatus = .synced
-            modelContext.insert(member)
+            dataSource.insertMember(member)
         }
-        try modelContext.save()
+        try dataSource.save()
     }
 
     /// "Servidor guanya" en `membershipStatus` (només el backend decideix
@@ -143,12 +185,11 @@ final class SyncEngine {
     }
 
     private func markCurrentMemberSyncFailed() async {
-        let descriptor = FetchDescriptor<Member>()
-        guard let members = try? modelContext.fetch(descriptor) else { return }
-        for member in members where member.syncStatus == .pendingUpload {
+        guard let members = try? dataSource.fetchPendingMembers() else { return }
+        for member in members {
             member.syncStatus = .syncFailed
         }
-        try? modelContext.save()
+        try? dataSource.save()
     }
 }
 

@@ -29,6 +29,9 @@ struct MemberPhotoPicker: View {
         
         VStack(spacing: 10) {
             Button {
+                #if DEBUG
+                print("🖼️ Usuario tocó avatar para cambiar foto")
+                #endif
                 showSourceDialog = true
             } label: {
                 avatar
@@ -36,21 +39,43 @@ struct MemberPhotoPicker: View {
             .buttonStyle(.plain)
 
             Button(photoData == nil ? addPhotoText : changePhotoText) {
+                #if DEBUG
+                print("🖼️ Usuario tocó botón '\(photoData == nil ? "Añadir" : "Cambiar")' foto")
+                #endif
                 showSourceDialog = true
             }
             .font(.footnote)
         }
         .confirmationDialog(dialogTitle, isPresented: $showSourceDialog, titleVisibility: .visible) {
-            Button(takePhotoText) { showCamera = true }
+            Button(takePhotoText) { 
+                #if DEBUG
+                print("📷 Usuario seleccionó: Tomar foto")
+                #endif
+                showCamera = true 
+            }
 
             PhotosPicker(selection: $photosPickerItem, matching: .images) {
                 Text(chooseGalleryText)
             }
+            .onChange(of: photosPickerItem) { oldValue, newValue in
+                #if DEBUG
+                print("📸 PhotosPicker cambió: \(newValue != nil ? "seleccionado" : "vacío")")
+                #endif
+            }
 
             if photoData != nil {
-                Button(removeText, role: .destructive) { photoData = nil }
+                Button(removeText, role: .destructive) { 
+                    #if DEBUG
+                    print("🗑️ Usuario eliminó foto")
+                    #endif
+                    photoData = nil 
+                }
             }
-            Button(cancelText, role: .cancel) {}
+            Button(cancelText, role: .cancel) {
+                #if DEBUG
+                print("❌ Usuario canceló diálogo")
+                #endif
+            }
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraCaptureView { image in
@@ -62,10 +87,50 @@ struct MemberPhotoPicker: View {
             .ignoresSafeArea()
         }
         .task(id: photosPickerItem) {
-            guard let item = photosPickerItem,
-                  let data = try? await item.loadTransferable(type: Data.self),
-                  let uiImage = UIImage(data: data) else { return }
+            #if DEBUG
+            print("📸 PhotoPicker task iniciado")
+            print("   photosPickerItem: \(photosPickerItem != nil ? "SÍ" : "NO")")
+            #endif
+            
+            guard let item = photosPickerItem else {
+                #if DEBUG
+                print("   ❌ No hay item seleccionado")
+                #endif
+                return
+            }
+            
+            #if DEBUG
+            print("   ✅ Item seleccionado, cargando...")
+            #endif
+            
+            guard let data = try? await item.loadTransferable(type: Data.self) else {
+                #if DEBUG
+                print("   ❌ Error cargando datos transferibles")
+                #endif
+                return
+            }
+            
+            #if DEBUG
+            print("   ✅ Datos cargados: \(data.count) bytes")
+            #endif
+            
+            guard let uiImage = UIImage(data: data) else {
+                #if DEBUG
+                print("   ❌ Error convirtiendo a UIImage")
+                #endif
+                return
+            }
+            
+            #if DEBUG
+            print("   ✅ UIImage creado: \(uiImage.size)")
+            #endif
+            
             photoData = ImageCompression.jpegData(from: uiImage)
+            
+            #if DEBUG
+            print("   ✅ photoData asignado: \(photoData?.count ?? 0) bytes")
+            #endif
+            
             photosPickerItem = nil
         }
     }

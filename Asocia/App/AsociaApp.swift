@@ -61,7 +61,9 @@ struct AsociaApp: App {
                 }
             }
             .task {
+                #if DEBUG
                 print("🚀 AsociaApp.task iniciado")
+                #endif
                 // El SyncEngine necesita el ModelContext, que solo está
                 // disponible una vez el WindowGroup ha inyectado el
                 // modelContainer en el entorno.
@@ -70,14 +72,20 @@ struct AsociaApp: App {
                     let engine = SyncEngine(apiClient: apiClient, modelContext: context)
                     engine.start()
                     syncEngine = engine
+                    #if DEBUG
                     print("   SyncEngine inicializado")
+                    #endif
                 }
 
+                #if DEBUG
                 print("   Esperando 1.2s para ocultar splash...")
+                #endif
                 try? await Task.sleep(for: .seconds(1.2))
                 withAnimation(.easeOut(duration: 0.4)) {
                     showSplash = false
+                    #if DEBUG
                     print("   ✅ Splash oculto, mostrando RootView")
+                    #endif
                 }
             }
             .environment(\.syncEngine, syncEngine)

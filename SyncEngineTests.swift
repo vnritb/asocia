@@ -4,9 +4,8 @@ import SwiftData
 @testable import Asocia
 
 /// Mock implementation of MembershipAPIClient for SyncEngine tests.
-/// Using @MainActor to avoid isolation issues with SyncEngine tests.
-@MainActor
-final class MockMembershipAPIClientForTests: MembershipAPIClient {
+/// Allows simulating successful responses and network errors.
+actor MockMembershipAPIClientForTests: MembershipAPIClient {
     
     var fetchResult: Result<MemberDTO, Error>
     var updateError: Error?
@@ -22,7 +21,7 @@ final class MockMembershipAPIClientForTests: MembershipAPIClient {
             throw error
         }
         updateCalls.append(dto)
-        return MembershipApplicationResponse(authToken: "mock-token", member: dto)
+        return MembershipApplicationResponse(authToken: "mock-token-\(UUID().uuidString)", member: dto)
     }
     
     func fetchCurrentMember() async throws -> MemberDTO {
@@ -43,40 +42,16 @@ final class MockMembershipAPIClientForTests: MembershipAPIClient {
     }
 }
 
-/// Mock implementation of MemberDataSource for testing
-@MainActor
-final class MockMemberDataSource: MemberDataSource {
-    private var members: [Member] = []
-    private(set) var saveCalled = false
-    
-    func fetchPendingMembers() throws -> [Member] {
-        members.filter { $0.syncStatus == .pendingUpload }
-    }
-    
-    func fetchMember(byID id: UUID) throws -> Member? {
-        members.first(where: { $0.id == id })
-    }
-    
-    func insertMember(_ member: Member) {
-        members.append(member)
-    }
-    
-    func save() throws {
-        saveCalled = true
-    }
-    
-    // Helper methods for tests
-    func addMember(_ member: Member) {
-        members.append(member)
-    }
-    
-    func allMembers() -> [Member] {
-        members
-    }
-}
-
 @Suite("SyncEngine")
+@MainActor
 struct SyncEngineTests {
+
+    private func makeInMemoryContext() -> ModelContext {
+        let schema = Schema([Member.self])
+        let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: schema, configurations: [configuration])
+        return container.mainContext
+    }
 
     private func sampleDTO(id: UUID = UUID(), status: MembershipStatus = .active) -> MemberDTO {
         MemberDTO(
@@ -91,17 +66,16 @@ struct SyncEngineTests {
         )
     }
 
-    @Test("syncNow() crea localment el soci que ja existeix al servidor") 
-    @MainActor
+    @Test("syncNow() crea localment el soci que ja existeix al servidor")
     func pullCreatesLocalMemberWhenMissing() async throws {
-        let dataSource = MockMemberDataSource()
+        let context = makeInMemoryContext()
         let remote = sampleDTO(status: .active)
         let mock = MockMembershipAPIClientForTests(fetchResult: .success(remote))
-        let engine = SyncEngine(apiClient: mock, dataSource: dataSource)
+        let engine = SyncEngine(apiClient: mock, modelContext: context)
 
         await engine.syncNow()
 
-        let members = dataSource.allMembers()
+        let members = try context.fetch(FetchDescriptor<Member>())
         #expect(members.count == 1, "Debe haber exactamente 1 miembro")
         #expect(members.first?.id == remote.id, "El ID debe coincidir")
         #expect(members.first?.membershipStatus == .active, "El estado debe ser active")
@@ -110,9 +84,8 @@ struct SyncEngineTests {
     }
 
     @Test("syncNow() puja els canvis locals pendents i els marca synced")
-    @MainActor
     func pushUploadsPendingLocalChanges() async throws {
-        let dataSource = MockMemberDataSource()
+        let context = makeInMemoryContext()
         let id = UUID()
 
         let local = Member(
@@ -121,35 +94,37 @@ struct SyncEngineTests {
             postalCode: "08001", city: "Barcelona", province: "Barcelona",
             membershipStatus: .active, syncStatus: .pendingUpload
         )
-        dataSource.addMember(local)
+        context.insert(local)
+        try context.save()
 
         let remoteBeforePush = sampleDTO(id: id, status: .active)
         let mock = MockMembershipAPIClientForTests(fetchResult: .success(remoteBeforePush))
-        let engine = SyncEngine(apiClient: mock, dataSource: dataSource)
+        let engine = SyncEngine(apiClient: mock, modelContext: context)
 
         await engine.syncNow()
 
-        #expect(mock.updateCalls.count == 1, "Debe haber exactamente 1 llamada a updateMember")
-        #expect(mock.updateCalls.first?.mobilePhone == "699000000", "El teléfono debe ser el editado localmente")
+        let updateCalls = await mock.updateCalls
+        #expect(updateCalls.count == 1, "Debe haber exactamente 1 llamada a updateMember")
+        #expect(updateCalls.first?.mobilePhone == "699000000", "El teléfono debe ser el editado localmente")
         #expect(local.syncStatus == .synced, "El estado debe cambiar a synced")
     }
 
     @Test("Un fallo de xarxa deixa el soci marcat com syncFailed, sense perdre les dades locals")
-    @MainActor
     func networkFailureMarksSyncFailed() async throws {
-        let dataSource = MockMemberDataSource()
+        let context = makeInMemoryContext()
         let local = Member(
             firstName: "Ana", firstSurname: "García", email: "ana@example.com",
             mobilePhone: "600123456", address: "Carrer Major 1",
             postalCode: "08001", city: "Barcelona", province: "Barcelona", syncStatus: .pendingUpload
         )
-        dataSource.addMember(local)
+        context.insert(local)
+        try context.save()
 
         let mock = MockMembershipAPIClientForTests(
             fetchResult: .failure(APIClientError.transport),
             updateError: APIClientError.transport
         )
-        let engine = SyncEngine(apiClient: mock, dataSource: dataSource)
+        let engine = SyncEngine(apiClient: mock, modelContext: context)
 
         await engine.syncNow()
 
@@ -158,4 +133,3 @@ struct SyncEngineTests {
         #expect(local.firstName == "Ana", "Los datos locales no deben perderse")
     }
 }
-
