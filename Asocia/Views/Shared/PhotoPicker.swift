@@ -19,6 +19,14 @@ struct MemberPhotoPicker: View {
     @State private var photosPickerItem: PhotosPickerItem?
 
     var body: some View {
+        let addPhotoText = loc.t("photoPicker.add")
+        let changePhotoText = loc.t("photoPicker.change")
+        let dialogTitle = loc.t("photoPicker.dialogTitle")
+        let takePhotoText = loc.t("photoPicker.takePhoto")
+        let chooseGalleryText = loc.t("photoPicker.chooseGallery")
+        let removeText = loc.t("photoPicker.remove")
+        let cancelText = loc.t("common.cancel")
+        
         VStack(spacing: 10) {
             Button {
                 showSourceDialog = true
@@ -27,22 +35,22 @@ struct MemberPhotoPicker: View {
             }
             .buttonStyle(.plain)
 
-            Button(photoData == nil ? loc.t("photoPicker.add") : loc.t("photoPicker.change")) {
+            Button(photoData == nil ? addPhotoText : changePhotoText) {
                 showSourceDialog = true
             }
             .font(.footnote)
         }
-        .confirmationDialog(loc.t("photoPicker.dialogTitle"), isPresented: $showSourceDialog, titleVisibility: .visible) {
-            Button(loc.t("photoPicker.takePhoto")) { showCamera = true }
+        .confirmationDialog(dialogTitle, isPresented: $showSourceDialog, titleVisibility: .visible) {
+            Button(takePhotoText) { showCamera = true }
 
             PhotosPicker(selection: $photosPickerItem, matching: .images) {
-                Text(loc.t("photoPicker.chooseGallery"))
+                Text(chooseGalleryText)
             }
 
             if photoData != nil {
-                Button(loc.t("photoPicker.remove"), role: .destructive) { photoData = nil }
+                Button(removeText, role: .destructive) { photoData = nil }
             }
-            Button(loc.t("common.cancel"), role: .cancel) {}
+            Button(cancelText, role: .cancel) {}
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraCaptureView { image in

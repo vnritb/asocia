@@ -42,6 +42,9 @@ struct MembershipButtonView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .onAppear {
+            print("🔵 MembershipButtonView apareció")
+        }
     }
 }
 

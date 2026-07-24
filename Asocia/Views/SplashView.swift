@@ -23,6 +23,9 @@ struct SplashView: View {
                     .foregroundStyle(.white)
             }
         }
+        .onAppear {
+            print("💧 SplashView apareció")
+        }
     }
 
     private var logo: Image {

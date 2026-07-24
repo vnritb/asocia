@@ -7,7 +7,8 @@ struct SettingsView: View {
     @Environment(\.appEnvironment) private var appEnvironment
 
     @State private var languages = WorldLanguages.all()
-
+    @State private var showErrorAlert = false
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -19,7 +20,7 @@ struct SettingsView: View {
                 }
                 #endif
 
-                Section(loc.t("settings.language.section")) {
+                Section() {
                     Picker(loc.t("settings.language.current"), selection: languageBinding) {
                         ForEach(languages) { language in
                             Text(language.name).tag(language.code)
@@ -39,16 +40,15 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle(loc.t("settings.navTitle"))
-            .alert(
-                loc.t("settings.language.errorTitle"),
-                isPresented: Binding(
-                    get: { loc.translationError != nil },
-                    set: { _ in }
-                )
-            ) {
-                Button(loc.t("common.ok")) {}
+            .alert(loc.t("settings.language.errorTitle"), isPresented: $showErrorAlert) {
+                Button(loc.t("common.ok")) {
+                    showErrorAlert = false
+                }
             } message: {
                 Text(loc.translationError ?? "")
+            }
+            .onChange(of: loc.translationError) { _, newValue in
+                showErrorAlert = (newValue != nil)
             }
         }
     }
@@ -63,5 +63,6 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager(translationClient: MockTranslationClient()))
+        .environment(\.appEnvironment, .mock)
 }

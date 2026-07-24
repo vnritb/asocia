@@ -74,7 +74,7 @@ struct SignupView: View {
                     .listRowBackground(Color.clear)
                 }
 
-                Section(loc.t("signup.section.personalData")) {
+                Section {
                     TextField(loc.t("signup.field.firstName"), text: $firstName)
                         .textContentType(.givenName)
                     TextField(loc.t("signup.field.firstSurname"), text: $firstSurname)
@@ -96,7 +96,7 @@ struct SignupView: View {
                     Text(loc.t("signup.requiredFieldsFooter"))
                 }
 
-                Section(loc.t("signup.section.contact")) {
+                Section {
                     TextField(loc.t("signup.field.email"), text: $email)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
