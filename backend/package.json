@@ -15,7 +15,8 @@
     "test:unit": "vitest run .unit.test.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage",
-    "test:all": "npm run typecheck && npm run test"
+    "test:all": "npm run typecheck && npm run test",
+    "test:full": "bash scripts/test-all.sh"
   },
   "workspaces": [
     "packages/shared",
