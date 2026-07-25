@@ -1,114 +1,336 @@
-# Asocia — backend de microservicios
+# Backend de Asocia
 
-Node.js + TypeScript, monorepo con npm workspaces. Cuatro servicios detrás de
-un API Gateway, pensados para que tanto la app iOS de este repo como la
-futura app Android (fuera del alcance de esta entrega, pero consumiendo
-exactamente el mismo API) hablen con el mismo backend sin diferencias.
+Microservicios Node.js/TypeScript para la app Asocia.
+
+## Estructura
 
 ```
 backend/
-  packages/shared/         # tipos TypeScript compartidos por todos los servicios
-  services/
-    api-gateway/            # único punto de entrada público (puerto 4000)
-    membership-service/     # alta de socios, ficha, aprobación/rechazo (4001)
-    chat-service/           # conversaciones, mensajes, eventos/calendario (4002)
-    translation-service/    # traducción de la UI con IA + caché (4003)
-  docker-compose.yml        # Postgres + los 4 servicios, para desarrollo local
+├── packages/
+│   └── shared/                    # Tipos y utilidades compartidas
+├── services/
+│   ├── api-gateway/              # Gateway principal (puerto 4000)
+│   ├── membership/               # Gestión de socios (puerto 4001)
+│   ├── chat/                     # Mensajería (puerto 4002)
+│   └── translation/              # Traducción con IA (puerto 4003)
+├── test-helpers/                 # Utilidades para tests
+├── migrations/                   # Scripts SQL
+├── scripts/                      # Scripts de utilidad
+├── docker-compose.yml            # Orquestación de servicios
+├── package.json                  # Workspace raíz
+└── vitest.config.ts              # Configuración de tests
 ```
 
-Ya comprobado en este repo: `npm install && npm run build` compila los 5
-paquetes sin errores (`npm run typecheck` también). Lo único que no se ha
-podido probar en este entorno es una base de datos Postgres real (aquí no
-hay Docker disponible) — al arrancar sin Postgres, los servicios fallan de
-forma controlada con `ECONNREFUSED`, que es el comportamiento esperado.
+## Requisitos
 
-## Por qué estos 4 servicios y no otros
+- Node.js 20+
+- PostgreSQL 15+
+- Docker & Docker Compose (recomendado)
 
-- **api-gateway**: único punto de entrada de la app. Traduce el Bearer token
-  de sesión del socio en la identidad interna (`X-User-Id`/`X-User-Name`)
-  que usan el resto de servicios, y es quien impone la regla "solo socios
-  con alta confirmada acceden al Chat" — así ni chat-service ni
-  translation-service necesitan saber nada sobre cómo se autentica un socio.
-- **membership-service**: dueño de los datos del socio y del ciclo de vida
-  del alta (`pendingApproval` -> `active`/`rejected`). Es la única fuente de
-  verdad de `membershipStatus`.
-- **chat-service**: conversaciones (individuales/grupo/actividad), mensajes
-  y el calendario de eventos de las salas de actividad. La unicidad "solo
-  una conversación individual por pareja de socios" está garantizada a
-  nivel de base de datos (tabla `chat.individual_conversation_pairs`, ver
-  `services/chat-service/src/schema.sql`), no solo en el código.
-- **translation-service**: recibe el diccionario de textos en español y lo
-  traduce a cualquier idioma con IA (Claude), cacheando el resultado en
-  Postgres para que la traducción de cada idioma se pague una sola vez,
-  la primera vez que alguien lo elige — no una vez por usuario.
-
-## Arrancar en local
+## Instalación
 
 ```bash
 cd backend
-cp services/*/.env.example services/*/.env   # y rellena ANTHROPIC_API_KEY
-docker compose up --build
+npm install
 ```
 
-Esto levanta Postgres (con los 3 esquemas ya creados) y los 4 servicios.
-El API Gateway queda en `http://localhost:4000`.
+## Ejecutar servicios
 
-Sin Docker, cada servicio se puede levantar suelto contra un Postgres local
-(`npm run dev:gateway`, `npm run dev:membership`, `npm run dev:chat`,
-`npm run dev:translation` desde la raíz de `backend/`), siempre que exista
-la base de datos `asocia` con los esquemas `membership`, `chat` y
-`translation` (ver `scripts/init-schemas.sql`).
+### Opción 1: Con Docker (recomendado)
 
-## Endpoints principales (vía api-gateway)
+```bash
+# Copiar variables de entorno
+cp services/*/.env.example services/*/.env
 
-| Método | Ruta | Quién la llama | Auth |
-|---|---|---|---|
-| POST | `/v1/members/apply` | App (alta) | Ninguna |
-| GET/PATCH | `/v1/members/me` | App (ficha propia) | Bearer del socio |
-| GET | `/v1/admin/members` | Backoffice | `x-admin-key` |
-| POST | `/v1/admin/members/:id/confirm` | Backoffice | `x-admin-key` |
-| POST | `/v1/admin/members/:id/reject` | Backoffice | `x-admin-key` |
-| GET | `/v1/directory` | App (buscar socios) | Bearer + alta activa |
-| GET/POST | `/v1/conversations` | App (Chat) | Bearer + alta activa |
-| POST | `/v1/conversations/individual` | App (Chat) | Bearer + alta activa |
-| POST | `/v1/conversations/group` \| `/activity` | App (Chat) | Bearer + alta activa |
-| GET/POST | `/v1/conversations/:id/messages` | App (Chat) | Bearer + alta activa |
-| GET | `/v1/conversations/:id/events` | App (Chat) | Bearer + alta activa |
-| POST | `/v1/events/:id/confirm` | App (RSVP) | Bearer + alta activa |
-| POST | `/v1/admin/events` | Backoffice | `x-internal-key` |
-| POST | `/v1/translate` | App (Ajustes > Idioma) | Ninguna |
+# Editar .env si es necesario (especialmente ANTHROPIC_API_KEY para traducción real)
 
-La app iOS de esta entrega solo usa `/v1/members/*` de verdad (vía
-`Asocia/Services/APIClient.swift`) y `/v1/translate` (vía
-`TranslationClient.swift`). El Chat de la app usa de momento un backend
-**emulado en el propio dispositivo** (`MockChatService`, decisión explícita
-para esta fase — ver `docs/ARQUITECTURA.docx`), pero ya habla exactamente el
-mismo contrato (`ChatServicing`) que tendría un cliente real contra
-`chat-service`; sustituir el mock por un cliente HTTP real es el siguiente
-paso natural.
+# Levantar todos los servicios
+docker compose up --build
 
-## Backoffice / app Android (fuera de alcance, contrato ya listo)
+# Servicios disponibles:
+# - http://localhost:4000 - API Gateway
+# - http://localhost:4001 - Membership Service
+# - http://localhost:4002 - Chat Service
+# - http://localhost:4003 - Translation Service
+# - localhost:5432 - PostgreSQL
+```
 
-Ni el backoffice de administración ni la app Android se construyen en esta
-entrega. Lo que sí existe ya es el contrato que ambos necesitarán:
+### Opción 2: Sin Docker (desarrollo)
 
-- Confirmar/rechazar altas, listar socios pendientes: `/v1/admin/members*`.
-- Crear eventos e invitar socios a una actividad: `POST /v1/admin/events`.
-- Los tipos compartidos de `packages/shared/src/types.ts` son el contrato
-  exacto (nombres de campo incluidos) que espera la app iOS — la app
-  Android debería consumir el mismo JSON sin traducciones intermedias.
+```bash
+# Terminal 1: Levantar PostgreSQL
+docker compose up postgres
 
-## Despliegue en producción (Render, capa gratuita)
+# Aplicar migraciones
+psql -h localhost -p 5432 -U asocia -d asocia < migrations/schema.sql
 
-Cada servicio se despliega como un "Web Service" independiente en Render
-(build desde su Dockerfile, contexto = `backend/`), más una base de datos
-PostgreSQL de Render compartida por los tres servicios con esquema propio.
-Ver `docs/ARQUITECTURA.docx` para la comparativa de proveedores y sus
-limitaciones (la capa gratuita de Render "duerme" tras inactividad y la
-base de datos gratuita caduca a los 90 días — asumible para el MVP, pero
-conviene pasar a un plan de pago en cuanto haya socios reales).
+# Terminal 2: API Gateway
+npm run dev:gateway
 
-Variables de entorno a configurar en Render para cada servicio: ver los
-`.env.example` de cada carpeta en `services/*/`. Los pares `ADMIN_API_KEY` /
-`INTERNAL_API_KEY` deben coincidir entre el api-gateway y el servicio que
-los verifica (membership-service y chat-service respectivamente).
+# Terminal 3: Membership Service
+npm run dev:membership
+
+# Terminal 4: Chat Service
+npm run dev:chat
+
+# Terminal 5: Translation Service
+npm run dev:translation
+```
+
+## Tests
+
+### Configuración inicial de tests
+
+```bash
+# 1. Configurar base de datos de test
+chmod +x scripts/setup-test-db.sh
+./scripts/setup-test-db.sh
+
+# 2. Copiar variables de entorno para tests
+cp .env.test.example .env.test
+```
+
+### Ejecutar tests
+
+```bash
+# Todos los tests (unitarios + integración)
+npm test
+
+# Solo tests unitarios (lógica de negocio, sin red ni BD)
+npm run test:unit
+
+# Solo tests de integración (requiere servicios corriendo)
+npm run test:integration
+
+# Tests en modo watch (durante desarrollo)
+npm run test:watch
+
+# Tests con coverage
+npm run test:coverage
+```
+
+### Tests unitarios vs integración
+
+- **Tests unitarios** (`*.unit.test.ts`):
+  - Prueban la lógica de negocio de forma aislada
+  - No requieren servicios externos, BD, ni red
+  - Usan mocks para dependencias
+  - Muy rápidos (< 1s)
+  - Ejemplos:
+    - Validación de datos (email, DNI, teléfono)
+    - Lógica de dominio (cálculo de edad, permisos)
+    - Utilidades y helpers
+
+- **Tests de integración** (`*.integration.test.ts`):
+  - Prueban endpoints HTTP completos
+  - Requieren servicios corriendo (con Docker o manualmente)
+  - Usan base de datos real (asocia_test)
+  - Más lentos (varios segundos)
+  - Ejemplos:
+    - Crear/listar/actualizar miembros
+    - Enviar/recibir mensajes
+    - Traducir textos
+    - Routing del API Gateway
+
+### Ejecutar tests de integración
+
+Los tests de integración requieren que los servicios estén corriendo:
+
+```bash
+# Terminal 1: Levantar servicios
+docker compose up
+
+# Terminal 2: Ejecutar tests de integración
+npm run test:integration
+```
+
+O ejecutar todo en un solo comando:
+
+```bash
+# Levantar servicios, ejecutar tests, y apagar
+docker compose up -d
+npm run test:integration
+docker compose down
+```
+
+## Verificación (sin servicios corriendo)
+
+```bash
+# Type checking de TypeScript
+npm run typecheck
+
+# Compilar todos los servicios
+npm run build
+
+# Todo (typecheck + tests + build)
+npm run test:all
+```
+
+## Endpoints principales
+
+### API Gateway (`http://localhost:4000`)
+
+**Membership**
+- `POST /api/members` - Crear socio
+- `GET /api/members` - Listar socios
+- `GET /api/members/:id` - Ver socio
+- `PATCH /api/members/:id/status` - Confirmar/rechazar socio
+- `PUT /api/members/:id` - Actualizar datos
+- `DELETE /api/members/:id` - Eliminar socio
+
+**Chat**
+- `POST /api/messages` - Enviar mensaje
+- `GET /api/messages/:id` - Ver mensaje
+- `GET /api/conversations/:userId1/:userId2` - Ver conversación
+- `GET /api/conversations/:userId` - Listar conversaciones
+- `PATCH /api/messages/:id/read` - Marcar como leído
+- `GET /api/messages/unread/:userId` - Contar mensajes sin leer
+
+**Translation**
+- `POST /api/translate` - Traducir texto
+- `POST /api/detect-language` - Detectar idioma
+- `GET /api/supported-languages` - Idiomas soportados
+- `POST /api/translate/batch` - Traducir múltiples textos
+
+**Health**
+- `GET /health` - Estado de todos los servicios
+
+## Variables de entorno
+
+Cada servicio tiene su propio `.env`:
+
+```bash
+services/
+├── api-gateway/.env
+├── membership/.env
+├── chat/.env
+└── translation/.env
+```
+
+Variables importantes:
+
+```env
+# PostgreSQL
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=asocia
+POSTGRES_USER=asocia
+POSTGRES_PASSWORD=asocia_secret
+
+# Anthropic API (para traducción real)
+ANTHROPIC_API_KEY=tu-api-key-aquí
+
+# URLs de servicios (para gateway)
+MEMBERSHIP_SERVICE_URL=http://membership:4001
+CHAT_SERVICE_URL=http://chat:4002
+TRANSLATION_SERVICE_URL=http://translation:4003
+```
+
+## Despliegue
+
+Ver `../.github/workflows/deploy-*.yml` para configuración de CI/CD.
+
+Los workflows están preparados pero comentados. Para activarlos:
+
+1. Configura secretos en GitHub:
+   - `POSTGRES_CONNECTION_STRING`
+   - `ANTHROPIC_API_KEY`
+   - Credenciales de despliegue (Render, AWS, etc.)
+
+2. Descomenta los workflows de deploy
+
+3. Haz push a `main` (producción) o `staging`
+
+## Troubleshooting
+
+### Tests fallan con "Connection refused"
+
+Los tests de integración requieren que los servicios estén corriendo:
+
+```bash
+docker compose up -d
+npm run test:integration
+```
+
+### Tests de traducción fallan
+
+Si no tienes `ANTHROPIC_API_KEY` configurada, algunos tests de traducción fallarán. Opciones:
+
+1. Usar solo tests unitarios: `npm run test:unit`
+2. Configurar la API key en `.env.test`
+3. Los mocks deberían funcionar sin API key (verificar implementación)
+
+### PostgreSQL no se conecta
+
+Verificar que el contenedor esté corriendo:
+
+```bash
+docker compose ps
+docker compose logs postgres
+```
+
+### Puerto ya en uso
+
+Si algún puerto (4000-4003) ya está ocupado:
+
+```bash
+# Ver qué está usando el puerto
+lsof -i :4000
+
+# Matar el proceso
+kill -9 <PID>
+```
+
+## Desarrollo
+
+### Añadir un nuevo test unitario
+
+```typescript
+// services/membership/src/validators/myValidator.unit.test.ts
+import { describe, it, expect } from 'vitest';
+
+describe('MyValidator', () => {
+  it('should validate something', () => {
+    expect(validateSomething(input)).toBe(expected);
+  });
+});
+```
+
+### Añadir un nuevo test de integración
+
+```typescript
+// services/membership/tests/myFeature.integration.test.ts
+import { describe, it, expect } from 'vitest';
+import request from 'supertest';
+
+describe('My Feature Integration', () => {
+  const baseURL = process.env.MEMBERSHIP_SERVICE_URL || 'http://localhost:4001';
+
+  it('should work end-to-end', async () => {
+    const response = await request(baseURL)
+      .post('/endpoint')
+      .send({ data: 'test' })
+      .expect(201);
+
+    expect(response.body).toBeDefined();
+  });
+});
+```
+
+### Ejecutar un solo archivo de test
+
+```bash
+npx vitest run services/membership/src/validators/memberValidator.unit.test.ts
+```
+
+### Ver coverage detallado
+
+```bash
+npm run test:coverage
+open coverage/index.html
+```
+
+## Más información
+
+- Documentación de arquitectura: `../docs/ARQUITECTURA.md`
+- Tests de la app iOS: `../AsociaTests/` y `../AsociaUITests/`

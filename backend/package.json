@@ -1,21 +1,35 @@
 {
   "name": "asocia-backend",
-  "private": true,
   "version": "1.0.0",
-  "workspaces": [
-    "packages/*",
-    "services/*"
-  ],
+  "private": true,
+  "type": "module",
   "scripts": {
-    "build:shared": "npm run build --workspace=@asocia/shared",
-    "typecheck": "npm run build:shared && npm run typecheck --workspaces --if-present",
-    "build": "npm run build:shared && npm run build --workspaces --if-present",
-    "dev:gateway": "npm run dev --workspace=services/api-gateway",
-    "dev:membership": "npm run dev --workspace=services/membership-service",
-    "dev:chat": "npm run dev --workspace=services/chat-service",
-    "dev:translation": "npm run dev --workspace=services/translation-service"
+    "dev:gateway": "npm run dev -w api-gateway",
+    "dev:membership": "npm run dev -w membership",
+    "dev:chat": "npm run dev -w chat",
+    "dev:translation": "npm run dev -w translation",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "build": "npm run build -ws --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --include '**/*.unit.test.ts'",
+    "test:integration": "vitest run --include '**/*.integration.test.ts'",
+    "test:coverage": "vitest run --coverage",
+    "test:all": "npm run typecheck && npm run test"
   },
+  "workspaces": [
+    "packages/shared",
+    "services/api-gateway",
+    "services/membership",
+    "services/chat",
+    "services/translation"
+  ],
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "@types/node": "^20.10.0",
+    "@types/supertest": "^6.0.2",
+    "@vitest/coverage-v8": "^1.0.4",
+    "supertest": "^6.3.3",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
   }
 }
