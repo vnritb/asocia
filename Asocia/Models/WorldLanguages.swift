@@ -23,8 +23,7 @@ struct AppLanguage: Identifiable, Hashable {
 enum WorldLanguages {
 
     static let priorityCodes = [
-        "es", "ca", "gl", "eu", "en",
-        "zh", "hi", "ar", "fr", "bn", "pt", "ru", "id", "ur", "de"
+        "es", "ca", "gl", "eu", "en"
     ]
 
     static func all(displayLocale: Locale = Locale(identifier: "es")) -> [AppLanguage] {
