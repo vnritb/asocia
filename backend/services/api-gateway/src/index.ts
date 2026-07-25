@@ -95,4 +95,8 @@ app.use(
   createProxyMiddleware({ target: MEMBERSHIP_SERVICE_URL, changeOrigin: true })
 );
 
-app.listen(PORT, () => console.log(`api-gateway escuchando en :${PORT}`));
+export { app };
+
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => console.log(`api-gateway escuchando en :${PORT}`));
+}

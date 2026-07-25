@@ -82,11 +82,15 @@ app.post("/v1/translate", async (req, res) => {
   res.json(response);
 });
 
-ensureSchema()
-  .then(() => {
-    app.listen(PORT, () => console.log(`translation-service escuchando en :${PORT}`));
-  })
-  .catch((error) => {
-    console.error("No se pudo preparar el esquema de translation-service:", error);
-    process.exit(1);
-  });
+export { app };
+
+if (process.env.NODE_ENV !== "test") {
+  ensureSchema()
+    .then(() => {
+      app.listen(PORT, () => console.log(`translation-service escuchando en :${PORT}`));
+    })
+    .catch((error) => {
+      console.error("No se pudo preparar el esquema de translation-service:", error);
+      process.exit(1);
+    });
+}

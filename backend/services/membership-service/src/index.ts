@@ -254,11 +254,15 @@ app.post("/v1/admin/members/:id/reject", requireAdmin, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 
-ensureSchema()
-  .then(() => {
-    app.listen(PORT, () => console.log(`membership-service escuchando en :${PORT}`));
-  })
-  .catch((error) => {
-    console.error("No se pudo preparar el esquema de membership-service:", error);
-    process.exit(1);
-  });
+export { app };
+
+if (process.env.NODE_ENV !== "test") {
+  ensureSchema()
+    .then(() => {
+      app.listen(PORT, () => console.log(`membership-service escuchando en :${PORT}`));
+    })
+    .catch((error) => {
+      console.error("No se pudo preparar el esquema de membership-service:", error);
+      process.exit(1);
+    });
+}

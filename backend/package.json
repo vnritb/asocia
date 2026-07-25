@@ -13,7 +13,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run .unit.test.ts",
-    "test:integration": "vitest run .integration.test.ts",
+    "pretest:integration:mock": "npm run build -w packages/shared",
+    "test:integration:mock": "vitest run --config vitest.integration.mock.config.ts",
+    "test:integration:real": "vitest run --config vitest.integration.real.config.ts",
+    "test:integration": "npm run test:integration:mock",
     "test:coverage": "vitest run --coverage",
     "test:all": "npm run typecheck && npm run test"
   },

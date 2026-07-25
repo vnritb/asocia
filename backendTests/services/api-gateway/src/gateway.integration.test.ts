@@ -1,348 +1,137 @@
-import { describe, it, expect, beforeAll } from 'vitest';
-import request from 'supertest';
-import { generateMemberData } from '../../../test-helpers/database';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import request from "supertest";
+import { resolveIntegrationTarget, type IntegrationTarget } from "../../../test-helpers/integrationTarget";
+import { applyForMembership, randomUUID, validApplicationPayload } from "../../../test-helpers/fixtures";
 
-/**
- * Tests de integración del API Gateway
- * Verifica que el gateway rutea correctamente a todos los microservicios
- */
+describe("api-gateway Integration", () => {
+  let target: IntegrationTarget;
+  let baseURL: string;
+  const adminKey = process.env.ADMIN_API_KEY ?? "changeme-admin-key";
 
-describe('API Gateway Integration', () => {
-  const baseURL = process.env.API_GATEWAY_URL || 'http://localhost:4000';
-  let testMemberId: string;
-  let testMessageId: string;
+  beforeAll(async () => {
+    target = await resolveIntegrationTarget();
+    baseURL = target.gateway;
+  }, 30000);
 
-  describe('Health Check', () => {
-    it('should return healthy status', async () => {
-      const response = await request(baseURL)
-        .get('/health')
-        .expect(200);
+  afterAll(() => target.close());
 
-      expect(response.body.status).toBe('healthy');
-    });
-
-    it('should include services status', async () => {
-      const response = await request(baseURL)
-        .get('/health')
-        .expect(200);
-
-      expect(response.body.services).toBeDefined();
-      expect(response.body.services).toHaveProperty('membership');
-      expect(response.body.services).toHaveProperty('chat');
-      expect(response.body.services).toHaveProperty('translation');
+  describe("Health Check", () => {
+    it("should report healthy", async () => {
+      const response = await request(baseURL).get("/healthz").expect(200);
+      expect(response.body).toMatchObject({ ok: true, service: "api-gateway" });
     });
   });
 
-  describe('Routing to Membership Service', () => {
-    it('should route POST /api/members to membership service', async () => {
-      const memberData = generateMemberData();
+  describe("Proxying to membership-service under /v1/members", () => {
+    it("should route the public application endpoint", async () => {
+      const payload = validApplicationPayload();
+
+      const response = await request(baseURL).post("/v1/members/apply").send(payload).expect(201);
+
+      expect(response.body.member).toMatchObject({ firstName: payload.firstName, membershipStatus: "pendingApproval" });
+    });
+
+    it("should route the authenticated 'me' endpoint using the member's own token", async () => {
+      const { authToken, member } = await applyForMembership(baseURL);
 
       const response = await request(baseURL)
-        .post('/api/members')
-        .send(memberData)
+        .get("/v1/members/me")
+        .set("authorization", `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body.id).toBe(member.id);
+    });
+  });
+
+  describe("Proxying to translation-service under /v1/translate", () => {
+    it("should route translation requests (public, no auth required)", async () => {
+      const response = await request(baseURL)
+        .post("/v1/translate")
+        .send({ targetLanguage: "es", strings: { hello: "Hola" } })
+        .expect(200);
+
+      expect(response.body.strings).toEqual({ hello: "Hola" });
+    });
+  });
+
+  describe("Chat routes gated behind an active membership", () => {
+    it("should reject chat routes without an Authorization header", async () => {
+      const response = await request(baseURL).get("/v1/conversations").expect(401);
+      expect(response.body.error).toBe("notAuthenticated");
+    });
+
+    it("should reject chat routes for a member whose application is still pending", async () => {
+      const { authToken } = await applyForMembership(baseURL);
+
+      const response = await request(baseURL)
+        .get("/v1/conversations")
+        .set("authorization", `Bearer ${authToken}`)
+        .expect(403);
+
+      expect(response.body.error).toBe("membershipNotActive");
+    });
+
+    it("should route to chat-service once the membership is confirmed, injecting the internal identity headers", async () => {
+      const { authToken, member } = await applyForMembership(baseURL);
+
+      await request(baseURL)
+        .post(`/v1/admin/members/${member.id}/confirm`)
+        .set("x-admin-key", adminKey)
+        .expect(200);
+
+      const conversations = await request(baseURL)
+        .get("/v1/conversations")
+        .set("authorization", `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(Array.isArray(conversations.body)).toBe(true);
+
+      const created = await request(baseURL)
+        .post("/v1/conversations/individual")
+        .set("authorization", `Bearer ${authToken}`)
+        .send({ otherUserId: randomUUID() })
         .expect(201);
 
-      expect(response.body).toMatchObject({
-        id: expect.any(String),
-        name: memberData.name,
-        email: memberData.email,
-        status: 'pending'
-      });
-
-      testMemberId = response.body.id;
-    });
-
-    it('should route GET /api/members/:id to membership service', async () => {
-      if (!testMemberId) {
-        // Crear un miembro si no existe
-        const memberData = generateMemberData();
-        const created = await request(baseURL).post('/api/members').send(memberData);
-        testMemberId = created.body.id;
-      }
-
-      const response = await request(baseURL)
-        .get(`/api/members/${testMemberId}`)
-        .expect(200);
-
-      expect(response.body.id).toBe(testMemberId);
-    });
-
-    it('should route GET /api/members to membership service', async () => {
-      const response = await request(baseURL)
-        .get('/api/members')
-        .expect(200);
-
-      expect(Array.isArray(response.body)).toBe(true);
-    });
-
-    it('should route PATCH /api/members/:id/status to membership service', async () => {
-      if (!testMemberId) {
-        const memberData = generateMemberData();
-        const created = await request(baseURL).post('/api/members').send(memberData);
-        testMemberId = created.body.id;
-      }
-
-      const response = await request(baseURL)
-        .patch(`/api/members/${testMemberId}/status`)
-        .send({ status: 'confirmed' })
-        .expect(200);
-
-      expect(response.body.status).toBe('confirmed');
+      expect(created.body.participantIDs).toContain(member.id);
     });
   });
 
-  describe('Routing to Chat Service', () => {
-    it('should route POST /api/messages to chat service', async () => {
-      const messageData = {
-        senderId: 'test-user-1',
-        recipientId: 'test-user-2',
-        content: 'Hello from gateway test',
-        type: 'text'
-      };
+  describe("Service composition through the gateway", () => {
+    it("should apply for membership, confirm it, translate a message and send it as a chat message", async () => {
+      const { authToken, member } = await applyForMembership(baseURL);
+      await request(baseURL).post(`/v1/admin/members/${member.id}/confirm`).set("x-admin-key", adminKey).expect(200);
 
-      const response = await request(baseURL)
-        .post('/api/messages')
-        .send(messageData)
-        .expect(201);
-
-      expect(response.body).toMatchObject({
-        id: expect.any(String),
-        senderId: messageData.senderId,
-        recipientId: messageData.recipientId,
-        content: messageData.content
-      });
-
-      testMessageId = response.body.id;
-    });
-
-    it('should route GET /api/messages/:id to chat service', async () => {
-      if (!testMessageId) {
-        const messageData = {
-          senderId: 'test-user-1',
-          recipientId: 'test-user-2',
-          content: 'Test',
-          type: 'text'
-        };
-        const created = await request(baseURL).post('/api/messages').send(messageData);
-        testMessageId = created.body.id;
-      }
-
-      const response = await request(baseURL)
-        .get(`/api/messages/${testMessageId}`)
-        .expect(200);
-
-      expect(response.body.id).toBe(testMessageId);
-    });
-
-    it('should route GET /api/conversations/:userId1/:userId2 to chat service', async () => {
-      const response = await request(baseURL)
-        .get('/api/conversations/test-user-1/test-user-2')
-        .expect(200);
-
-      expect(Array.isArray(response.body)).toBe(true);
-    });
-
-    it('should route PATCH /api/messages/:id/read to chat service', async () => {
-      if (!testMessageId) {
-        const messageData = {
-          senderId: 'test-user-1',
-          recipientId: 'test-user-2',
-          content: 'Test',
-          type: 'text'
-        };
-        const created = await request(baseURL).post('/api/messages').send(messageData);
-        testMessageId = created.body.id;
-      }
-
-      const response = await request(baseURL)
-        .patch(`/api/messages/${testMessageId}/read`)
-        .expect(200);
-
-      expect(response.body.read).toBe(true);
-    });
-  });
-
-  describe('Routing to Translation Service', () => {
-    it('should route POST /api/translate to translation service', async () => {
-      const translationRequest = {
-        text: 'Hello world',
-        sourceLang: 'en',
-        targetLang: 'es'
-      };
-
-      const response = await request(baseURL)
-        .post('/api/translate')
-        .send(translationRequest)
-        .expect(200);
-
-      expect(response.body.translated).toBeDefined();
-      expect(response.body.targetLang).toBe('es');
-    });
-
-    it('should route POST /api/detect-language to translation service', async () => {
-      const detectRequest = {
-        text: 'Hola mundo'
-      };
-
-      const response = await request(baseURL)
-        .post('/api/detect-language')
-        .send(detectRequest)
-        .expect(200);
-
-      expect(response.body.detectedLang).toBeDefined();
-    });
-
-    it('should route GET /api/supported-languages to translation service', async () => {
-      const response = await request(baseURL)
-        .get('/api/supported-languages')
-        .expect(200);
-
-      expect(Array.isArray(response.body.languages)).toBe(true);
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should return 404 for non-existent routes', async () => {
-      const response = await request(baseURL)
-        .get('/api/non-existent-route')
-        .expect(404);
-
-      expect(response.body.error).toMatch(/not found/i);
-    });
-
-    it('should handle service unavailability gracefully', async () => {
-      // Intentar acceder a un servicio que podría estar caído
-      // El gateway debería devolver un error apropiado
-      const response = await request(baseURL)
-        .get('/api/members/service-test-unavailable')
-        .expect((res: any) => {
-          // Debería ser 404, 503, o 500 dependiendo de la implementación
-          expect([404, 500, 503]).toContain(res.status);
-        });
-
-      expect(response.body.error).toBeDefined();
-    });
-
-    it('should return 400 for invalid request data', async () => {
-      const invalidData = {
-        // Faltan campos requeridos
-        name: 'Invalid Member'
-      };
-
-      const response = await request(baseURL)
-        .post('/api/members')
-        .send(invalidData)
-        .expect(400);
-
-      expect(response.body.error).toBeDefined();
-    });
-  });
-
-  describe('Request Validation', () => {
-    it('should validate Content-Type header', async () => {
-      const response = await request(baseURL)
-        .post('/api/members')
-        .set('Content-Type', 'text/plain')
-        .send('invalid data')
-        .expect((res: any) => {
-          // Debería rechazar content-type inválido
-          expect([400, 415]).toContain(res.status);
-        });
-    });
-
-    it('should handle malformed JSON', async () => {
-      const response = await request(baseURL)
-        .post('/api/members')
-        .set('Content-Type', 'application/json')
-        .send('{ invalid json }')
-        .expect(400);
-
-      expect(response.body.error).toBeDefined();
-    });
-  });
-
-  describe('CORS Headers', () => {
-    it('should include CORS headers', async () => {
-      const response = await request(baseURL)
-        .options('/api/members')
-        .set('Origin', 'http://localhost:3000')
-        .expect(200);
-
-      expect(response.headers['access-control-allow-origin']).toBeDefined();
-      expect(response.headers['access-control-allow-methods']).toBeDefined();
-    });
-
-    it('should allow cross-origin requests', async () => {
-      const response = await request(baseURL)
-        .get('/api/members')
-        .set('Origin', 'http://localhost:3000')
-        .expect(200);
-
-      expect(response.headers['access-control-allow-origin']).toBeDefined();
-    });
-  });
-
-  describe('Rate Limiting', () => {
-    it('should include rate limit headers', async () => {
-      const response = await request(baseURL)
-        .get('/api/members')
-        .expect(200);
-
-      // Si el gateway implementa rate limiting, debería incluir estos headers
-      if (response.headers['x-ratelimit-limit']) {
-        expect(response.headers['x-ratelimit-limit']).toBeDefined();
-        expect(response.headers['x-ratelimit-remaining']).toBeDefined();
-      }
-    });
-  });
-
-  describe('Request Logging', () => {
-    it('should include request ID in response headers', async () => {
-      const response = await request(baseURL)
-        .get('/api/members')
-        .expect(200);
-
-      // Muchos gateways incluyen un request ID para trazabilidad
-      if (response.headers['x-request-id']) {
-        expect(response.headers['x-request-id']).toMatch(/^[a-f0-9-]+$/);
-      }
-    });
-  });
-
-  describe('Service Composition', () => {
-    it('should be able to chain requests to multiple services', async () => {
-      // 1. Crear un miembro
-      const memberData = generateMemberData();
-      const member = await request(baseURL)
-        .post('/api/members')
-        .send(memberData)
-        .expect(201);
-
-      // 2. Traducir un mensaje
       const translation = await request(baseURL)
-        .post('/api/translate')
-        .send({
-          text: 'Bienvenido a la asociación',
-          sourceLang: 'es',
-          targetLang: 'en'
-        })
+        .post("/v1/translate")
+        .send({ targetLanguage: "es", strings: { welcome: "Benvingut a l'associació" } })
         .expect(200);
 
-      // 3. Enviar mensaje de bienvenida
-      const message = await request(baseURL)
-        .post('/api/messages')
-        .send({
-          senderId: 'system',
-          recipientId: member.body.id,
-          content: translation.body.translated,
-          type: 'system'
-        })
+      const conversation = await request(baseURL)
+        .post("/v1/conversations/individual")
+        .set("authorization", `Bearer ${authToken}`)
+        .send({ otherUserId: randomUUID() })
         .expect(201);
 
-      expect(member.body.id).toBeDefined();
-      expect(translation.body.translated).toBeDefined();
-      expect(message.body.id).toBeDefined();
-      expect(message.body.recipientId).toBe(member.body.id);
+      const message = await request(baseURL)
+        .post(`/v1/conversations/${conversation.body.id}/messages`)
+        .set("authorization", `Bearer ${authToken}`)
+        .send({ text: translation.body.strings.welcome })
+        .expect(201);
+
+      expect(message.body).toMatchObject({ senderID: member.id, text: translation.body.strings.welcome });
+    });
+  });
+
+  describe("Error handling", () => {
+    it("should return 404 for a route with no matching proxy", async () => {
+      await request(baseURL).get("/this-route-does-not-exist").expect(404);
+    });
+  });
+
+  describe("CORS", () => {
+    it("should include CORS headers on responses", async () => {
+      const response = await request(baseURL).get("/healthz").set("Origin", "http://localhost:3000").expect(200);
+      expect(response.headers["access-control-allow-origin"]).toBeDefined();
     });
   });
 });

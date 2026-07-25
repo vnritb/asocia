@@ -425,11 +425,15 @@ app.post("/v1/admin/events", requireInternal, async (req, res) => {
 
 // ---------------------------------------------------------------------------
 
-ensureSchema()
-  .then(() => {
-    app.listen(PORT, () => console.log(`chat-service escuchando en :${PORT}`));
-  })
-  .catch((error) => {
-    console.error("No se pudo preparar el esquema de chat-service:", error);
-    process.exit(1);
-  });
+export { app };
+
+if (process.env.NODE_ENV !== "test") {
+  ensureSchema()
+    .then(() => {
+      app.listen(PORT, () => console.log(`chat-service escuchando en :${PORT}`));
+    })
+    .catch((error) => {
+      console.error("No se pudo preparar el esquema de chat-service:", error);
+      process.exit(1);
+    });
+}
