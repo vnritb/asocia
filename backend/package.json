@@ -5,24 +5,24 @@
   "type": "module",
   "scripts": {
     "dev:gateway": "npm run dev -w api-gateway",
-    "dev:membership": "npm run dev -w membership",
-    "dev:chat": "npm run dev -w chat",
-    "dev:translation": "npm run dev -w translation",
+    "dev:membership": "npm run dev -w membership-service",
+    "dev:chat": "npm run dev -w chat-service",
+    "dev:translation": "npm run dev -w translation-service",
     "typecheck": "npm run typecheck -ws --if-present",
     "build": "npm run build -ws --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:unit": "vitest run --include '**/*.unit.test.ts'",
-    "test:integration": "vitest run --include '**/*.integration.test.ts'",
+    "test:unit": "vitest run .unit.test.ts",
+    "test:integration": "vitest run .integration.test.ts",
     "test:coverage": "vitest run --coverage",
     "test:all": "npm run typecheck && npm run test"
   },
   "workspaces": [
     "packages/shared",
     "services/api-gateway",
-    "services/membership",
-    "services/chat",
-    "services/translation"
+    "services/chat-service",
+    "services/membership-service",
+    "services/translation-service"
   ],
   "devDependencies": {
     "@types/node": "^20.10.0",

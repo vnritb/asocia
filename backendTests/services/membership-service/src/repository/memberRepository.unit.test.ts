@@ -113,10 +113,11 @@ describe('MemberRepository (unit)', () => {
 
       expect(created.status).toBe('pending');
 
+      const previousUpdatedAt = created.updatedAt.getTime();
       const updated = await repository.updateStatus(created.id, 'confirmed');
 
       expect(updated.status).toBe('confirmed');
-      expect(updated.updatedAt.getTime()).toBeGreaterThan(created.updatedAt.getTime());
+      expect(updated.updatedAt.getTime()).toBeGreaterThan(previousUpdatedAt);
     });
 
     it('should throw error when member not found', async () => {
@@ -140,7 +141,7 @@ describe('MemberRepository (unit)', () => {
     it('should filter by status', async () => {
       const member1 = await repository.create({ name: 'User 1', email: 'u1@test.com', dni: '11111111H', phone: '+34600111111' });
       await repository.create({ name: 'User 2', email: 'u2@test.com', dni: '22222222J', phone: '+34600222222' });
-      
+
       await repository.updateStatus(member1.id, 'confirmed');
 
       const confirmed = await repository.list({ status: 'confirmed' });
@@ -231,7 +232,7 @@ class MockMemberRepository {
     if (!member) throw new Error('Member not found');
 
     member.status = status;
-    member.updatedAt = new Date();
+    member.updatedAt = new Date(Math.max(member.createdAt.getTime(), Date.now()) + 1);
     return member;
   }
 

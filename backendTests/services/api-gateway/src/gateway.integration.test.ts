@@ -215,7 +215,7 @@ describe('API Gateway Integration', () => {
       // El gateway debería devolver un error apropiado
       const response = await request(baseURL)
         .get('/api/members/service-test-unavailable')
-        .expect((res) => {
+        .expect((res: any) => {
           // Debería ser 404, 503, o 500 dependiendo de la implementación
           expect([404, 500, 503]).toContain(res.status);
         });
@@ -244,7 +244,7 @@ describe('API Gateway Integration', () => {
         .post('/api/members')
         .set('Content-Type', 'text/plain')
         .send('invalid data')
-        .expect((res) => {
+        .expect((res: any) => {
           // Debería rechazar content-type inválido
           expect([400, 415]).toContain(res.status);
         });

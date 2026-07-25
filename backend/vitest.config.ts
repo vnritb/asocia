@@ -17,14 +17,15 @@ export default defineConfig({
         'vitest.config.ts'
       ]
     },
-    include: ['**/*.{test,spec}.ts'],
+    include: ['**/*.{test,spec}.ts', '../backendTests/**/*.{test,spec}.ts'],
     exclude: ['node_modules', 'dist'],
     testTimeout: 10000,
     hookTimeout: 10000
   },
   resolve: {
     alias: {
-      '@shared': path.resolve(__dirname, './packages/shared/src')
+      '@shared': path.resolve(__dirname, './packages/shared/src'),
+      supertest: path.resolve(__dirname, './node_modules/supertest')
     }
   }
 });

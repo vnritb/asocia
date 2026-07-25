@@ -178,7 +178,7 @@ npm run test:all
 
 ### API Gateway (`http://localhost:4000`)
 
-**Membership**
+### Membership
 
 - `POST /api/members` - Crear socio
 - `GET /api/members` - Listar socios
@@ -187,7 +187,7 @@ npm run test:all
 - `PUT /api/members/:id` - Actualizar datos
 - `DELETE /api/members/:id` - Eliminar socio
 
-**Chat**
+### Chat
 
 - `POST /api/messages` - Enviar mensaje
 - `GET /api/messages/:id` - Ver mensaje
@@ -196,14 +196,14 @@ npm run test:all
 - `PATCH /api/messages/:id/read` - Marcar como leído
 - `GET /api/messages/unread/:userId` - Contar mensajes sin leer
 
-**Translation**
+### Translation
 
 - `POST /api/translate` - Traducir texto
 - `POST /api/detect-language` - Detectar idioma
 - `GET /api/supported-languages` - Idiomas soportados
 - `POST /api/translate/batch` - Traducir múltiples textos
 
-**Health**
+### Health
 
 - `GET /health` - Estado de todos los servicios
 

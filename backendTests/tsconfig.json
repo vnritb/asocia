@@ -1,0 +1,34 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "lib": [
+            "ES2022"
+        ],
+        "strict": true,
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "types": [
+            "vitest/globals",
+            "node"
+        ],
+        "typeRoots": [
+            "../backend/node_modules/@types",
+            "../backend/node_modules"
+        ],
+        "paths": {
+            "vitest": [
+                "../backend/node_modules/vitest"
+            ],
+            "supertest": [
+                "../backend/node_modules/supertest"
+            ]
+        },
+        "skipLibCheck": true,
+        "noEmit": true
+    },
+    "include": [
+        "./**/*.ts"
+    ]
+}
