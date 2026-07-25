@@ -4,21 +4,29 @@ Microservicios Node.js/TypeScript para la app Asocia.
 
 ## Estructura
 
-```
+```text
 backend/
 ├── packages/
 │   └── shared/                    # Tipos y utilidades compartidas
 ├── services/
 │   ├── api-gateway/              # Gateway principal (puerto 4000)
-│   ├── membership/               # Gestión de socios (puerto 4001)
-│   ├── chat/                     # Mensajería (puerto 4002)
-│   └── translation/              # Traducción con IA (puerto 4003)
-├── test-helpers/                 # Utilidades para tests
+│   ├── chat-service/             # Mensajería (puerto 4002)
+│   ├── membership-service/       # Gestión de socios (puerto 4001)
+│   └── translation-service/      # Traducción con IA (puerto 4003)
 ├── migrations/                   # Scripts SQL
 ├── scripts/                      # Scripts de utilidad
 ├── docker-compose.yml            # Orquestación de servicios
 ├── package.json                  # Workspace raíz
-└── vitest.config.ts              # Configuración de tests
+├── vitest.config.ts              # Configuración de tests
+└── TESTS.md                      # Documentación de tests
+
+backendTests/
+├── services/
+│   ├── api-gateway/src/
+│   ├── chat-service/src/
+│   ├── membership-service/src/
+│   └── translation-service/src/
+└── test-helpers/                 # Utilidades para tests
 ```
 
 ## Requisitos
@@ -171,6 +179,7 @@ npm run test:all
 ### API Gateway (`http://localhost:4000`)
 
 **Membership**
+
 - `POST /api/members` - Crear socio
 - `GET /api/members` - Listar socios
 - `GET /api/members/:id` - Ver socio
@@ -179,6 +188,7 @@ npm run test:all
 - `DELETE /api/members/:id` - Eliminar socio
 
 **Chat**
+
 - `POST /api/messages` - Enviar mensaje
 - `GET /api/messages/:id` - Ver mensaje
 - `GET /api/conversations/:userId1/:userId2` - Ver conversación
@@ -187,24 +197,26 @@ npm run test:all
 - `GET /api/messages/unread/:userId` - Contar mensajes sin leer
 
 **Translation**
+
 - `POST /api/translate` - Traducir texto
 - `POST /api/detect-language` - Detectar idioma
 - `GET /api/supported-languages` - Idiomas soportados
 - `POST /api/translate/batch` - Traducir múltiples textos
 
 **Health**
+
 - `GET /health` - Estado de todos los servicios
 
 ## Variables de entorno
 
 Cada servicio tiene su propio `.env`:
 
-```bash
-services/
+```text
+backend/services/
 ├── api-gateway/.env
-├── membership/.env
-├── chat/.env
-└── translation/.env
+├── chat-service/.env
+├── membership-service/.env
+└── translation-service/.env
 ```
 
 Variables importantes:
@@ -286,7 +298,7 @@ kill -9 <PID>
 ### Añadir un nuevo test unitario
 
 ```typescript
-// services/membership/src/validators/myValidator.unit.test.ts
+// backendTests/services/membership-service/src/validators/myValidator.unit.test.ts
 import { describe, it, expect } from 'vitest';
 
 describe('MyValidator', () => {
@@ -299,7 +311,7 @@ describe('MyValidator', () => {
 ### Añadir un nuevo test de integración
 
 ```typescript
-// services/membership/tests/myFeature.integration.test.ts
+// backendTests/services/membership-service/src/myFeature.integration.test.ts
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 
@@ -320,7 +332,7 @@ describe('My Feature Integration', () => {
 ### Ejecutar un solo archivo de test
 
 ```bash
-npx vitest run services/membership/src/validators/memberValidator.unit.test.ts
+npx vitest run backendTests/services/membership-service/src/validators/memberValidator.unit.test.ts
 ```
 
 ### Ver coverage detallado

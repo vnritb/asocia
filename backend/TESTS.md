@@ -1,84 +1,66 @@
-# Estructura de Tests del Backend
+# Estructura de tests del backend
 
-Todos los archivos de tests están correctamente organizados en la carpeta `backend/`.
+Los tests del backend ahora viven fuera de la carpeta `backend`, en la raíz del proyecto, bajo `backendTests/`, mientras que el código de los servicios sigue en `backend/services/`.
 
-## ✅ Archivos creados:
+## ✅ Estructura actual
 
-```
+```text
 backend/
-├── vitest.config.ts                          # Configuración de Vitest
-├── package.json                               # Scripts de test
-├── .env.test                                  # Variables de entorno para tests
-├── README.md                                  # Documentación completa
-│
-├── test-helpers/                              # Utilidades compartidas
-│   ├── database.ts                            # Helpers para BD y generación de datos
-│   └── server.ts                              # Mocks de servidor
-│
-├── migrations/                                # Scripts SQL
-│   └── test-schema.sql                        # Schema de BD de test
-│
-├── scripts/                                   # Scripts de utilidad
-│   └── setup-test-db.sh                       # Setup automático de BD
-│
-└── services/
-    ├── membership/
-    │   ├── src/
-    │   │   ├── validators/
-    │   │   │   └── memberValidator.unit.test.ts      # Tests unitarios de validación
-    │   │   └── repository/
-    │   │       └── memberRepository.unit.test.ts     # Tests unitarios de repositorio
-    │   └── tests/
-    │       └── membership.integration.test.ts        # Tests de integración HTTP
-    │
-    ├── chat/
-    │   ├── src/
-    │   │   └── validators/
-    │   │       └── messageValidator.unit.test.ts     # Tests unitarios de validación
-    │   └── tests/
-    │       └── chat.integration.test.ts              # Tests de integración HTTP
-    │
-    ├── translation/
-    │   ├── src/
-    │   │   └── translationService.unit.test.ts       # Tests unitarios
-    │   └── tests/
-    │       └── translation.integration.test.ts       # Tests de integración HTTP
-    │
-    └── api-gateway/
-        └── tests/
-            └── gateway.integration.test.ts            # Tests de integración del gateway
+├── services/
+│   ├── api-gateway/
+│   ├── chat-service/
+│   ├── membership-service/
+│   └── translation-service/
+├── package.json
+├── vitest.config.ts
+├── .env.test
+├── README.md
+└── TESTS.md
+
+backendTests/
+├── services/
+│   ├── api-gateway/
+│   │   └── src/
+│   │       └── gateway.integration.test.ts
+│   ├── chat-service/
+│   │   └── src/
+│   │       ├── chat.integration.test.ts
+│   │       └── validators/
+│   │           └── messageValidator.unit.test.ts
+│   ├── membership-service/
+│   │   └── src/
+│   │       ├── membership.integration.test.ts
+│   │       ├── repository/
+│   │       │   └── memberRepository.unit.test.ts
+│   │       └── validators/
+│   │           └── memberValidator.unit.test.ts
+│   └── translation-service/
+│       └── src/
+│           ├── translation.integration.test.ts
+│           └── translationService.unit.test.ts
+└── test-helpers/
+    ├── database.ts
+    └── server.ts
 ```
 
-## 📊 Resumen:
+## 📊 Resumen
 
-- **16 archivos** de tests y configuración
-- **Tests unitarios**: 4 archivos (lógica de negocio)
-- **Tests de integración**: 4 archivos (endpoints HTTP)
-- **Helpers y configuración**: 8 archivos
+- **8 archivos de tests** en `backendTests/`
+- **4 tests de integración**
+- **4 tests unitarios**
+- **2 helpers compartidos** en `backendTests/test-helpers/`
 
-## 🚀 Para ejecutar:
+## 🚀 Cómo ejecutar
 
 ```bash
 cd backend
-
-# Instalar dependencias
 npm install
-
-# Tests unitarios (no requiere servicios)
-npm run test:unit
-
-# Tests de integración (requiere servicios corriendo)
-docker compose up -d
-npm run test:integration
-
-# Todos los tests
 npm test
 ```
 
-## ✅ Todo está listo!
+## ✅ Principios de organización
 
-Todos los archivos están correctamente ubicados en `backend/` y organizados según las mejores prácticas:
-- Tests unitarios junto al código que testean (en `src/`)
-- Tests de integración en carpetas `tests/` de cada servicio
-- Helpers compartidos en `test-helpers/`
-- Configuración en la raíz de `backend/`
+- El código de cada servicio vive en `backend/services/<servicio>/`
+- Los tests de cada servicio viven en `backendTests/services/<servicio>/src/`
+- Los helpers compartidos van en `backendTests/test-helpers/`
+- La estructura está alineada con los servicios reales del backend para que sea más fácil encontrar y mantener los tests
