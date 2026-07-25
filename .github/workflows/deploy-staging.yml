@@ -7,7 +7,7 @@ name: Deploy backend to Staging
 # de despliegue están comentados más abajo, a la espera de:
 #   1) Elegir el proveedor definitivo (ver docs/ARQUITECTURA.md, sección 6 —
 #      la recomendación de partida es Render).
-#   2) Crear los 4 Web Services + la base de datos en ese proveedor.
+#   2) Crear los 3 Web Services + la base de datos en ese proveedor.
 #   3) Añadir los secretos correspondientes en GitHub:
 #      Settings -> Secrets and variables -> Actions.
 #   4) Descomentar los pasos de este archivo y el trigger `push` de abajo.
@@ -55,12 +55,6 @@ jobs:
       #   run: |
       #     curl --fail -X POST \
       #       "https://api.render.com/v1/services/${{ secrets.RENDER_STAGING_CHAT_ID }}/deploys" \
-      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
-      #
-      # - name: Deploy translation-service
-      #   run: |
-      #     curl --fail -X POST \
-      #       "https://api.render.com/v1/services/${{ secrets.RENDER_STAGING_TRANSLATION_ID }}/deploys" \
       #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
       #
       # - name: Esperar a que el API Gateway responda

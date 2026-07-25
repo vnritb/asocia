@@ -149,12 +149,3 @@ export interface ChatUser {
   fullName: string;
   photoData: string | null; // base64, mismo criterio que Member.photoBase64
 }
-
-export interface TranslateRequest {
-  targetLanguage: string;
-  strings: Record<string, string>;
-}
-
-export interface TranslateResponse {
-  strings: Record<string, string>;
-}

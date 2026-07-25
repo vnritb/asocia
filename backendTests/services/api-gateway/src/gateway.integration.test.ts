@@ -43,17 +43,6 @@ describe("api-gateway Integration", () => {
     });
   });
 
-  describe("Proxying to translation-service under /v1/translate", () => {
-    it("should route translation requests (public, no auth required)", async () => {
-      const response = await request(baseURL)
-        .post("/v1/translate")
-        .send({ targetLanguage: "es", strings: { hello: "Hola" } })
-        .expect(200);
-
-      expect(response.body.strings).toEqual({ hello: "Hola" });
-    });
-  });
-
   describe("Chat routes gated behind an active membership", () => {
     it("should reject chat routes without an Authorization header", async () => {
       const response = await request(baseURL).get("/v1/conversations").expect(401);
@@ -97,14 +86,9 @@ describe("api-gateway Integration", () => {
   });
 
   describe("Service composition through the gateway", () => {
-    it("should apply for membership, confirm it, translate a message and send it as a chat message", async () => {
+    it("should apply for membership, confirm it and send a chat message", async () => {
       const { authToken, member } = await applyForMembership(baseURL);
       await request(baseURL).post(`/v1/admin/members/${member.id}/confirm`).set("x-admin-key", adminKey).expect(200);
-
-      const translation = await request(baseURL)
-        .post("/v1/translate")
-        .send({ targetLanguage: "es", strings: { welcome: "Benvingut a l'associació" } })
-        .expect(200);
 
       const conversation = await request(baseURL)
         .post("/v1/conversations/individual")
@@ -115,10 +99,10 @@ describe("api-gateway Integration", () => {
       const message = await request(baseURL)
         .post(`/v1/conversations/${conversation.body.id}/messages`)
         .set("authorization", `Bearer ${authToken}`)
-        .send({ text: translation.body.strings.welcome })
+        .send({ text: "Benvingut a l'associació" })
         .expect(201);
 
-      expect(message.body).toMatchObject({ senderID: member.id, text: translation.body.strings.welcome });
+      expect(message.body).toMatchObject({ senderID: member.id, text: "Benvingut a l'associació" });
     });
   });
 

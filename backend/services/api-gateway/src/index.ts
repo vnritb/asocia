@@ -6,7 +6,6 @@ import type { Member } from "@asocia/shared";
 const PORT = Number(process.env.PORT ?? 4000);
 const MEMBERSHIP_SERVICE_URL = process.env.MEMBERSHIP_SERVICE_URL ?? "http://localhost:4001";
 const CHAT_SERVICE_URL = process.env.CHAT_SERVICE_URL ?? "http://localhost:4002";
-const TRANSLATION_SERVICE_URL = process.env.TRANSLATION_SERVICE_URL ?? "http://localhost:4003";
 
 const app = express();
 app.use(cors());
@@ -78,15 +77,6 @@ app.use(
     target: MEMBERSHIP_SERVICE_URL,
     changeOrigin: true,
     pathFilter: "/v1/members"
-  })
-);
-
-// Traducción de idioma (pública).
-app.use(
-  createProxyMiddleware({
-    target: TRANSLATION_SERVICE_URL,
-    changeOrigin: true,
-    pathFilter: "/v1/translate"
   })
 );
 

@@ -17,19 +17,20 @@ x-node-healthcheck: &node-healthcheck
   start_period: 10s
 
 services:
-  postgres:
-    image: postgres:16-alpine
+  mariadb:
+    image: mariadb:11.4
     environment:
-      POSTGRES_USER: asocia
-      POSTGRES_PASSWORD: asocia
-      POSTGRES_DB: asocia
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: asocia
+      MARIADB_USER: asocia
+      MARIADB_PASSWORD: asocia
     ports:
-      - "5432:5432"
+      - "3307:3306"
     volumes:
-      - asocia_pgdata:/var/lib/postgresql/data
+      - asocia_mariadb_data:/var/lib/mysql
       - ./scripts/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U asocia"]
+      test: [ "CMD-SHELL", "mariadb-admin ping -h localhost -u asocia -pasocia --silent" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -39,7 +40,7 @@ services:
       context: .
       dockerfile: services/membership-service/Dockerfile
     environment:
-      DATABASE_URL: postgres://asocia:asocia@postgres:5432/asocia
+      DATABASE_URL: mariadb://asocia:asocia@mariadb:3306/membership
       PORT: "4001"
       ADMIN_API_KEY: ${ADMIN_API_KEY:-changeme-admin-key}
       CHAT_SERVICE_URL: http://chat-service:4002
@@ -47,48 +48,30 @@ services:
     ports:
       - "4001:4001"
     depends_on:
-      postgres:
+      mariadb:
         condition: service_healthy
       chat-service:
         condition: service_healthy
     healthcheck:
       <<: *node-healthcheck
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4001/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: [ "CMD", "node", "-e", "fetch('http://localhost:4001/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
 
   chat-service:
     build:
       context: .
       dockerfile: services/chat-service/Dockerfile
     environment:
-      DATABASE_URL: postgres://asocia:asocia@postgres:5432/asocia
+      DATABASE_URL: mariadb://asocia:asocia@mariadb:3306/chat
       PORT: "4002"
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme-internal-key}
     ports:
       - "4002:4002"
     depends_on:
-      postgres:
+      mariadb:
         condition: service_healthy
     healthcheck:
       <<: *node-healthcheck
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4002/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-
-  translation-service:
-    build:
-      context: .
-      dockerfile: services/translation-service/Dockerfile
-    environment:
-      DATABASE_URL: postgres://asocia:asocia@postgres:5432/asocia
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
-      PORT: "4003"
-    ports:
-      - "4003:4003"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      <<: *node-healthcheck
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4003/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: [ "CMD", "node", "-e", "fetch('http://localhost:4002/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
 
   api-gateway:
     build:
@@ -98,7 +81,6 @@ services:
       PORT: "4000"
       MEMBERSHIP_SERVICE_URL: http://membership-service:4001
       CHAT_SERVICE_URL: http://chat-service:4002
-      TRANSLATION_SERVICE_URL: http://translation-service:4003
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-changeme-internal-key}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-changeme-admin-key}
     ports:
@@ -108,11 +90,9 @@ services:
         condition: service_healthy
       chat-service:
         condition: service_healthy
-      translation-service:
-        condition: service_healthy
     healthcheck:
       <<: *node-healthcheck
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: [ "CMD", "node", "-e", "fetch('http://localhost:4000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
 
 volumes:
-  asocia_pgdata:
+  asocia_mariadb_data:

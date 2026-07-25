@@ -97,7 +97,7 @@ async function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return res.status(401).json({ error: "notAuthenticated" });
 
-  const result = await pool.query("SELECT * FROM membership.members WHERE auth_token = $1", [token]);
+  const result = await pool.query("SELECT * FROM membership.members WHERE auth_token = ?", [token]);
   if (result.rowCount === 0) return res.status(401).json({ error: "notAuthenticated" });
 
   (req as any).memberRow = result.rows[0];
@@ -131,20 +131,19 @@ app.post("/v1/members/apply", async (req, res) => {
   const id = body.id && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : crypto.randomUUID();
   const authToken = crypto.randomBytes(32).toString("hex");
 
-  const result = await pool.query(
+  await pool.query(
     `INSERT INTO membership.members (
        id, first_name, first_surname, second_surname, email, secondary_email,
        mobile_phone, landline_phone, address, postal_code, city, province,
        birth_date, entry_year, exit_year, promotion, profession, workplace,
        iban, facebook_username, instagram_username, x_username, tiktok_username,
        photo_base64, is_searchable, membership_status, auth_token, updated_at
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,'pendingApproval',$26, now())
-     RETURNING *`,
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendingApproval', ?, NOW())`,
     [
       id, body.firstName, body.firstSurname, body.secondSurname ?? "",
       body.email ?? "", body.secondaryEmail ?? "", body.mobilePhone ?? "", body.landlinePhone ?? "",
       body.address ?? "", body.postalCode ?? "", body.city ?? "", body.province ?? "",
-      body.birthDate ?? null, body.entryYear ?? "", body.exitYear ?? "", body.promotion ?? "",
+      body.birthDate ? new Date(body.birthDate) : null, body.entryYear ?? "", body.exitYear ?? "", body.promotion ?? "",
       body.profession ?? "", body.workplace ?? "", body.iban ?? "",
       body.facebookUsername ?? "", body.instagramUsername ?? "", body.xUsername ?? "", body.tiktokUsername ?? "",
       body.photoBase64 ?? null, body.isSearchable ?? false,
@@ -152,7 +151,8 @@ app.post("/v1/members/apply", async (req, res) => {
     ]
   );
 
-  const response: MembershipApplicationResponse = { authToken, member: toMemberJSON(result.rows[0]) };
+  const inserted = await pool.query("SELECT * FROM membership.members WHERE id = ?", [id]);
+  const response: MembershipApplicationResponse = { authToken, member: toMemberJSON(inserted.rows[0]) };
   res.status(201).json(response);
 });
 
@@ -192,8 +192,9 @@ app.patch("/v1/members/me", authenticate, async (req, res) => {
   const values: unknown[] = [];
   for (const field of EDITABLE) {
     if (field in body) {
-      values.push((body as any)[field]);
-      sets.push(`${FIELD_TO_COLUMN[field]} = $${values.length}`);
+      const value = (body as any)[field];
+      values.push(field === "birthDate" && value ? new Date(value) : value);
+      sets.push(`${FIELD_TO_COLUMN[field]} = ?`);
     }
   }
   if (sets.length === 0) {
@@ -201,11 +202,12 @@ app.patch("/v1/members/me", authenticate, async (req, res) => {
   }
   values.push(memberId);
 
-  const result = await pool.query(
-    `UPDATE membership.members SET ${sets.join(", ")}, updated_at = now() WHERE id = $${values.length} RETURNING *`,
+  await pool.query(
+    `UPDATE membership.members SET ${sets.join(", ")}, updated_at = NOW() WHERE id = ?`,
     values
   );
-  const member = toMemberJSON(result.rows[0]);
+  const updated = await pool.query("SELECT * FROM membership.members WHERE id = ?", [memberId]);
+  const member = toMemberJSON(updated.rows[0]);
   res.json(member);
 
   if ("isSearchable" in body || "firstName" in body || "firstSurname" in body || "secondSurname" in body || "photoBase64" in body) {
@@ -222,34 +224,36 @@ app.patch("/v1/members/me", authenticate, async (req, res) => {
 app.get("/v1/admin/members", requireAdmin, async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : null;
   const result = status
-    ? await pool.query("SELECT * FROM membership.members WHERE membership_status = $1 ORDER BY updated_at DESC", [status])
+    ? await pool.query("SELECT * FROM membership.members WHERE membership_status = ? ORDER BY updated_at DESC", [status])
     : await pool.query("SELECT * FROM membership.members ORDER BY updated_at DESC");
   res.json(result.rows.map(toMemberJSON));
 });
 
 app.post("/v1/admin/members/:id/confirm", requireAdmin, async (req, res) => {
-  const result = await pool.query(
+  await pool.query(
     `UPDATE membership.members
-     SET membership_status = 'active', join_date = now(), rejection_reason = NULL, updated_at = now()
-     WHERE id = $1 RETURNING *`,
+     SET membership_status = 'active', join_date = NOW(), rejection_reason = NULL, updated_at = NOW()
+     WHERE id = ?`,
     [req.params.id]
   );
-  if (result.rowCount === 0) return res.status(404).json({ error: "notFound" });
-  const member = toMemberJSON(result.rows[0]);
+  const updated = await pool.query("SELECT * FROM membership.members WHERE id = ?", [req.params.id]);
+  if (updated.rowCount === 0) return res.status(404).json({ error: "notFound" });
+  const member = toMemberJSON(updated.rows[0]);
   res.json(member);
   void syncChatDirectory(member);
 });
 
 app.post("/v1/admin/members/:id/reject", requireAdmin, async (req, res) => {
   const reason = typeof req.body?.reason === "string" ? req.body.reason : null;
-  const result = await pool.query(
+  await pool.query(
     `UPDATE membership.members
-     SET membership_status = 'rejected', rejection_reason = $2, updated_at = now()
-     WHERE id = $1 RETURNING *`,
-    [req.params.id, reason]
+     SET membership_status = 'rejected', rejection_reason = ?, updated_at = NOW()
+     WHERE id = ?`,
+    [reason, req.params.id]
   );
-  if (result.rowCount === 0) return res.status(404).json({ error: "notFound" });
-  res.json(toMemberJSON(result.rows[0]));
+  const updated = await pool.query("SELECT * FROM membership.members WHERE id = ?", [req.params.id]);
+  if (updated.rowCount === 0) return res.status(404).json({ error: "notFound" });
+  res.json(toMemberJSON(updated.rows[0]));
 });
 
 // ---------------------------------------------------------------------------

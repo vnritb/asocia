@@ -51,12 +51,6 @@ jobs:
       #       "https://api.render.com/v1/services/${{ secrets.RENDER_PROD_CHAT_ID }}/deploys" \
       #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
       #
-      # - name: Deploy translation-service
-      #   run: |
-      #     curl --fail -X POST \
-      #       "https://api.render.com/v1/services/${{ secrets.RENDER_PROD_TRANSLATION_ID }}/deploys" \
-      #       -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}"
-      #
       # - name: Esperar a que el API Gateway responda
       #   run: |
       #     curl --fail --retry 15 --retry-delay 20 --retry-connrefused \

@@ -1,7 +1,7 @@
 name: Backend CI
 
 # Tipa, compila y hace un smoke test de los microservicios en cada push/PR
-# que toque backend/. Usa un Postgres real como servicio de CI para
+# que toque backend/. Usa una MariaDB real como servicio de CI para
 # comprobar que los esquemas (schema.sql de cada servicio) se aplican sin
 # errores, no solo que el código compila.
 on:
@@ -34,10 +34,10 @@ jobs:
       - name: Instalar dependencias (workspaces)
         run: npm install
 
-      - name: Typecheck (los 5 paquetes)
+      - name: Typecheck (los 4 paquetes)
         run: npm run typecheck
 
-      - name: Build (los 5 paquetes)
+      - name: Build (los 4 paquetes)
         run: npm run build
 
   smoke-test:
@@ -49,16 +49,17 @@ jobs:
         working-directory: backend
 
     services:
-      postgres:
-        image: postgres:16-alpine
+      mariadb:
+        image: mariadb:11.4
         env:
-          POSTGRES_USER: asocia
-          POSTGRES_PASSWORD: asocia
-          POSTGRES_DB: asocia
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: asocia
+          MARIADB_USER: asocia
+          MARIADB_PASSWORD: asocia
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd "pg_isready -U asocia"
+          --health-cmd "mariadb-admin ping -h localhost -u asocia -pasocia --silent"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -75,17 +76,15 @@ jobs:
       - name: Instalar dependencias
         run: npm install
 
-      - name: Crear esquemas (membership/chat/translation)
-        run: psql "postgres://asocia:asocia@localhost:5432/asocia" -f scripts/init-schemas.sql
-        env:
-          PGPASSWORD: asocia
+      - name: Crear esquemas (membership/chat)
+        run: mysql -h 127.0.0.1 -u root -proot < scripts/init-schemas.sql
 
       - name: Build
         run: npm run build
 
       - name: Arrancar membership-service y comprobar /healthz
         run: |
-          DATABASE_URL="postgres://asocia:asocia@localhost:5432/asocia" \
+          DATABASE_URL="mariadb://asocia:asocia@127.0.0.1:3306/membership" \
           PORT=4001 \
           node services/membership-service/dist/index.js &
           sleep 3
@@ -93,16 +92,8 @@ jobs:
 
       - name: Arrancar chat-service y comprobar /healthz
         run: |
-          DATABASE_URL="postgres://asocia:asocia@localhost:5432/asocia" \
+          DATABASE_URL="mariadb://asocia:asocia@127.0.0.1:3306/chat" \
           PORT=4002 \
           node services/chat-service/dist/index.js &
           sleep 3
           curl --fail http://localhost:4002/healthz
-
-      - name: Arrancar translation-service y comprobar /healthz
-        run: |
-          DATABASE_URL="postgres://asocia:asocia@localhost:5432/asocia" \
-          PORT=4003 \
-          node services/translation-service/dist/index.js &
-          sleep 3
-          curl --fail http://localhost:4003/healthz

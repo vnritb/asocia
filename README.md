@@ -99,7 +99,7 @@ cd backend
 docker compose up --build      # todo dockerizado: Postgres + los 4 servicios
 # o, sin Docker, servicio a servicio:
 npm install
-npm run dev:gateway   # y en otras terminales: dev:membership, dev:chat, dev:translation
+npm run dev:gateway   # y en otras terminales: dev:membership, dev:chat
 ```
 
 Verificación (sin necesidad de Postgres):
@@ -171,7 +171,7 @@ npm run typecheck
 El backend incluye:
 - ✅ **Tests unitarios** de validación de datos, lógica de negocio y repositorios (con mocks)
 - ✅ **Tests de integración** de endpoints HTTP y comunicación entre servicios
-- ✅ Tests de los 4 microservicios: membership, chat, translation y api-gateway
+- ✅ Tests de los 3 microservicios: membership, chat y api-gateway
 - ✅ Configuración con Vitest, supertest y base de datos de test
 
 Ver detalles en [`backend/README.md`](backend/README.md).

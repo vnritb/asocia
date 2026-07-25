@@ -2,12 +2,11 @@ export interface IntegrationTarget {
   gateway: string;
   membership: string;
   chat: string;
-  translation: string;
   close(): Promise<void>;
 }
 
 /**
- * URLs de los 4 servicios ya levantados por separado (docker compose / `npm
+ * URLs de los 3 servicios ya levantados por separado (docker compose / `npm
  * run dev:*`), con los mismos valores por defecto que usa cada uno en
  * local. Sobreescribibles con las variables de entorno *_SERVICE_URL.
  */
@@ -16,7 +15,6 @@ export async function resolveIntegrationTarget(): Promise<IntegrationTarget> {
     gateway: process.env.API_GATEWAY_URL ?? "http://localhost:4000",
     membership: process.env.MEMBERSHIP_SERVICE_URL ?? "http://localhost:4001",
     chat: process.env.CHAT_SERVICE_URL ?? "http://localhost:4002",
-    translation: process.env.TRANSLATION_SERVICE_URL ?? "http://localhost:4003",
     async close() {}
   };
 }

@@ -7,7 +7,6 @@
     "dev:gateway": "npm run dev -w api-gateway",
     "dev:membership": "npm run dev -w membership-service",
     "dev:chat": "npm run dev -w chat-service",
-    "dev:translation": "npm run dev -w translation-service",
     "typecheck": "npm run typecheck -ws --if-present",
     "build": "npm run build -ws --if-present",
     "test": "vitest run",
@@ -22,8 +21,7 @@
     "packages/shared",
     "services/api-gateway",
     "services/chat-service",
-    "services/membership-service",
-    "services/translation-service"
+    "services/membership-service"
   ],
   "devDependencies": {
     "@types/node": "^20.10.0",

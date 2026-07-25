@@ -9,8 +9,7 @@ backend/
 ├── services/
 │   ├── api-gateway/
 │   ├── chat-service/
-│   ├── membership-service/
-│   └── translation-service/
+│   └── membership-service/
 ├── package.json
 ├── vitest.config.ts
 ├── .env.test
@@ -34,20 +33,16 @@ backendTests/
 │   │       │   └── memberRepository.unit.test.ts
 │   │       └── validators/
 │   │           └── memberValidator.unit.test.ts
-│   └── translation-service/
-│       └── src/
-│           ├── translation.integration.test.ts
-│           └── translationService.unit.test.ts
 └── test-helpers/
-    ├── database.ts
-    └── server.ts
+    ├── fixtures.ts
+    └── integrationTarget.ts
 ```
 
 ## 📊 Resumen
 
-- **8 archivos de tests** en `backendTests/`
-- **4 tests de integración**
-- **4 tests unitarios**
+- **6 archivos de tests** en `backendTests/`
+- **3 tests de integración**
+- **3 tests unitarios**
 - **2 helpers compartidos** en `backendTests/test-helpers/`
 
 ## 🚀 Cómo ejecutar

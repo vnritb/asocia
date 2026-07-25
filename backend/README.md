@@ -11,8 +11,7 @@ backend/
 ├── services/
 │   ├── api-gateway/              # Gateway principal (puerto 4000)
 │   ├── chat-service/             # Mensajería (puerto 4002)
-│   ├── membership-service/       # Gestión de socios (puerto 4001)
-│   └── translation-service/      # Traducción con IA (puerto 4003)
+│   └── membership-service/       # Gestión de socios (puerto 4001)
 ├── migrations/                   # Scripts SQL
 ├── scripts/                      # Scripts de utilidad
 ├── docker-compose.yml            # Orquestación de servicios
@@ -24,15 +23,14 @@ backendTests/
 ├── services/
 │   ├── api-gateway/src/
 │   ├── chat-service/src/
-│   ├── membership-service/src/
-│   └── translation-service/src/
+│   └── membership-service/src/
 └── test-helpers/                 # Utilidades para tests
 ```
 
 ## Requisitos
 
 - Node.js 20+
-- PostgreSQL 15+
+- MariaDB 11+
 - Docker & Docker Compose (recomendado)
 
 ## Instalación
@@ -50,8 +48,6 @@ npm install
 # Copiar variables de entorno
 cp services/*/.env.example services/*/.env
 
-# Editar .env si es necesario (especialmente ANTHROPIC_API_KEY para traducción real)
-
 # Levantar todos los servicios
 docker compose up --build
 
@@ -59,18 +55,17 @@ docker compose up --build
 # - http://localhost:4000 - API Gateway
 # - http://localhost:4001 - Membership Service
 # - http://localhost:4002 - Chat Service
-# - http://localhost:4003 - Translation Service
-# - localhost:5432 - PostgreSQL
+# - localhost:3307 - MariaDB
 ```
 
 ### Opción 2: Sin Docker (desarrollo)
 
 ```bash
-# Terminal 1: Levantar PostgreSQL
-docker compose up postgres
+# Terminal 1: Levantar MariaDB
+docker compose up mariadb
 
-# Aplicar migraciones
-psql -h localhost -p 5432 -U asocia -d asocia < migrations/schema.sql
+# Aplicar esquemas
+mariadb -h 127.0.0.1 -P 3307 -u asocia -pasocia < scripts/init-schemas.sql
 
 # Terminal 2: API Gateway
 npm run dev:gateway
@@ -80,9 +75,6 @@ npm run dev:membership
 
 # Terminal 4: Chat Service
 npm run dev:chat
-
-# Terminal 5: Translation Service
-npm run dev:translation
 ```
 
 ## Tests
@@ -137,7 +129,6 @@ npm run test:coverage
   - Ejemplos:
     - Crear/listar/actualizar miembros
     - Enviar/recibir mensajes
-    - Traducir textos
     - Routing del API Gateway
 
 ### Ejecutar tests de integración
@@ -196,13 +187,6 @@ npm run test:all
 - `PATCH /api/messages/:id/read` - Marcar como leído
 - `GET /api/messages/unread/:userId` - Contar mensajes sin leer
 
-### Translation
-
-- `POST /api/translate` - Traducir texto
-- `POST /api/detect-language` - Detectar idioma
-- `GET /api/supported-languages` - Idiomas soportados
-- `POST /api/translate/batch` - Traducir múltiples textos
-
 ### Health
 
 - `GET /health` - Estado de todos los servicios
@@ -215,27 +199,22 @@ Cada servicio tiene su propio `.env`:
 backend/services/
 ├── api-gateway/.env
 ├── chat-service/.env
-├── membership-service/.env
-└── translation-service/.env
+└── membership-service/.env
 ```
 
 Variables importantes:
 
 ```env
-# PostgreSQL
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=asocia
-POSTGRES_USER=asocia
-POSTGRES_PASSWORD=asocia_secret
-
-# Anthropic API (para traducción real)
-ANTHROPIC_API_KEY=tu-api-key-aquí
+# MariaDB
+MARIADB_HOST=localhost
+MARIADB_PORT=3307
+MARIADB_DATABASE=asocia
+MARIADB_USER=asocia
+MARIADB_PASSWORD=asocia
 
 # URLs de servicios (para gateway)
 MEMBERSHIP_SERVICE_URL=http://membership:4001
 CHAT_SERVICE_URL=http://chat:4002
-TRANSLATION_SERVICE_URL=http://translation:4003
 ```
 
 ## Despliegue
@@ -245,8 +224,7 @@ Ver `../.github/workflows/deploy-*.yml` para configuración de CI/CD.
 Los workflows están preparados pero comentados. Para activarlos:
 
 1. Configura secretos en GitHub:
-   - `POSTGRES_CONNECTION_STRING`
-   - `ANTHROPIC_API_KEY`
+   - `MARIADB_CONNECTION_STRING`
    - Credenciales de despliegue (Render, AWS, etc.)
 
 2. Descomenta los workflows de deploy
@@ -264,26 +242,18 @@ docker compose up -d
 npm run test:integration
 ```
 
-### Tests de traducción fallan
-
-Si no tienes `ANTHROPIC_API_KEY` configurada, algunos tests de traducción fallarán. Opciones:
-
-1. Usar solo tests unitarios: `npm run test:unit`
-2. Configurar la API key en `.env.test`
-3. Los mocks deberían funcionar sin API key (verificar implementación)
-
-### PostgreSQL no se conecta
+### MariaDB no se conecta
 
 Verificar que el contenedor esté corriendo:
 
 ```bash
 docker compose ps
-docker compose logs postgres
+docker compose logs mariadb
 ```
 
 ### Puerto ya en uso
 
-Si algún puerto (4000-4003) ya está ocupado:
+Si algún puerto (4000-4002) ya está ocupado:
 
 ```bash
 # Ver qué está usando el puerto

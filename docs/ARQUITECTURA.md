@@ -57,19 +57,18 @@ Para producción real se recomienda no enviar la imagen como base64 dentro del J
 ## 5. Almacenamiento: base de datos distribuida móvil/servidor
 
 - **Local (offline-first)**: SwiftData con el campo `syncStatus` (`synced` / `pendingUpload` / `pendingDownload` / `conflict` / `syncFailed`). La UI SIEMPRE lee y escribe primero en SwiftData.
-- **Remoto**: PostgreSQL, un esquema por microservicio (`membership`, `chat`, `translation`) dentro de la misma instancia.
+- **Remoto**: MariaDB, una base de datos por microservicio (`membership`, `chat`) dentro de la misma instancia.
 - **Sincronización**: `SyncEngine` sube lo pendiente y baja el último estado del servidor al arrancar, cada 5 minutos y al recuperar conexión. "Servidor gana" en `membershipStatus`; *last-write-wins* en el resto de campos.
 
 ## 6. Backend de microservicios — dockerización
 
-Los 4 microservicios (Node.js + TypeScript, npm workspaces) están **completamente dockerizados**: cada uno tiene su propio `Dockerfile` multi-stage (build con `tsc`, imagen final `node:20-alpine` solo con lo necesario para ejecutar), y `docker-compose.yml` los levanta todos junto con PostgreSQL, con healthchecks reales (`node -e "fetch('http://localhost:PUERTO/healthz')..."`, sin depender de `curl` en la imagen) y dependencias ordenadas (`depends_on: condition: service_healthy`) para que ningún servicio arranque antes de que su dependencia esté lista. No hay ninguna otra pieza de infraestructura fuera de este `docker-compose.yml` — la app iOS es la única parte del proyecto que no se dockeriza (no tiene sentido: es un cliente nativo).
+Los 3 microservicios (Node.js + TypeScript, npm workspaces) están **completamente dockerizados**: cada uno tiene su propio `Dockerfile` multi-stage (build con `tsc`, imagen final `node:20-alpine` solo con lo necesario para ejecutar), y `docker-compose.yml` los levanta todos junto con MariaDB, con healthchecks reales (`node -e "fetch('http://localhost:PUERTO/healthz')..."`, sin depender de `curl` en la imagen) y dependencias ordenadas (`depends_on: condition: service_healthy`) para que ningún servicio arranque antes de que su dependencia esté lista. No hay ninguna otra pieza de infraestructura fuera de este `docker-compose.yml` — la app iOS es la única parte del proyecto que no se dockeriza (no tiene sentido: es un cliente nativo).
 
 - **api-gateway** (4000): único punto de entrada. Resuelve el Bearer token contra `membership-service`, exige alta confirmada para las rutas de Chat, y proxea el resto.
 - **membership-service** (4001): alta, ficha, aprobación/rechazo. Mantiene sincronizado el directorio de `chat-service` cada vez que cambia `membershipStatus` o `isSearchable`.
 - **chat-service** (4002): directorio, conversaciones, mensajes, eventos, actividades públicas y solicitudes de acceso.
-- **translation-service** (4003): traduce con Claude y cachea en Postgres.
 
-Verificado en este entorno: `npm install && npm run build && npm run typecheck` pasan sin errores en los 5 paquetes (`packages/shared` + los 4 servicios); el `api-gateway` arranca y responde en `/healthz`. No se ha podido probar con una Postgres real en este entorno concreto (sin Docker disponible aquí), pero los servicios fallan de forma controlada (`ECONNREFUSED`) en el punto esperado al no encontrarla, lo que confirma que el resto del código (rutas, tipos, build) es correcto.
+Verificado en este entorno: `npm install && npm run build && npm run typecheck` pasan sin errores en los 4 paquetes (`packages/shared` + los 3 servicios); el `api-gateway` arranca y responde en `/healthz`, y los tests de integración pasan contra una MariaDB real levantada con `docker compose`.
 
 ### Por qué no CloudKit
 

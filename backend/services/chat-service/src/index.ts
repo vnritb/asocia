@@ -40,7 +40,7 @@ async function participantsOf(conversationId: string): Promise<string[]> {
     "SELECT user_id FROM chat.conversation_participants WHERE conversation_id = $1",
     [conversationId]
   );
-  return result.rows.map((r) => r.user_id);
+  return result.rows.map((r: { user_id: string }) => r.user_id);
 }
 
 async function toConversationJSON(row: any): Promise<Conversation> {
@@ -79,7 +79,7 @@ async function toEventJSON(row: any): Promise<ActivityEvent> {
     startDate: new Date(row.start_date).toISOString(),
     endDate: row.end_date ? new Date(row.end_date).toISOString() : null,
     location: row.location,
-    attendees: attendees.rows.map((a) => ({ id: a.user_id, name: a.name, status: a.status }))
+    attendees: attendees.rows.map((a: { user_id: string; name: string; status: string }) => ({ id: a.user_id, name: a.name, status: a.status }))
   };
 }
 
@@ -124,14 +124,12 @@ app.post("/internal/directory/remove", requireInternal, async (req, res) => {
 });
 
 /**
- * Búsqueda de socios "a lo Google": no un simple ILIKE, sino similitud de
- * texto con pg_trgm (operador `%`, con el umbral por defecto de Postgres,
- * 0.3) para tolerar erratas — p.ej. buscar "Pedro Gimenez" encuentra antes
- * a "Pedro Jiménez" que a "Antonio Giménez", porque comparte más trigramas
- * (nombre completo) que solo el apellido. Se combina con ILIKE como
- * refuerzo para que las coincidencias literales de subcadena (más
- * habituales con nombres cortos) nunca se queden fuera aunque su similitud
- * global sea baja.
+ * Búsqueda de socios "a lo Google": no un simple LIKE, sino con tolerancia a
+ * erratas vía `SOUNDS LIKE` (SOUNDEX, nativo de MariaDB — el equivalente más
+ * cercano sin pg_trgm) — p.ej. buscar "Pedro Gimenez" también encuentra a
+ * "Pedro Jiménez". Se combina con LIKE como refuerzo para que las
+ * coincidencias literales de subcadena (más habituales con nombres cortos)
+ * siempre aparezcan, y para priorizarlas en el orden de resultados.
  */
 app.get("/v1/directory", requireUser, async (req, res) => {
   const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
@@ -139,19 +137,19 @@ app.get("/v1/directory", requireUser, async (req, res) => {
 
   const result = query
     ? await pool.query(
-        `SELECT *, similarity(full_name, $2) AS score
+      `SELECT *, (full_name LIKE CONCAT('%', $2, '%')) AS score
          FROM chat.directory
-         WHERE user_id != $1 AND (full_name % $2 OR full_name ILIKE '%' || $2 || '%')
+         WHERE user_id != $1 AND (full_name LIKE CONCAT('%', $3, '%') OR full_name SOUNDS LIKE $4)
          ORDER BY score DESC, full_name ASC
          LIMIT 30`,
-        [userId, query]
-      )
+      [userId, query, query, query]
+    )
     : await pool.query(
-        "SELECT *, 0 AS score FROM chat.directory WHERE user_id != $1 ORDER BY full_name ASC LIMIT 100",
-        [userId]
-      );
+      "SELECT *, 0 AS score FROM chat.directory WHERE user_id != $1 ORDER BY full_name ASC LIMIT 100",
+      [userId]
+    );
 
-  const users: ChatUser[] = result.rows.map((r) => ({ id: r.user_id, fullName: r.full_name, photoData: r.photo_base64 }));
+  const users: ChatUser[] = result.rows.map((r: { user_id: string; full_name: string; photo_base64?: string | null }) => ({ id: r.user_id, fullName: r.full_name, photoData: r.photo_base64 }));
   res.json(users);
 });
 
@@ -203,8 +201,8 @@ app.post("/v1/conversations/individual", requireUser, async (req, res) => {
       [id]
     );
     await client.query(
-      "INSERT INTO chat.conversation_participants (conversation_id, user_id) VALUES ($1, $2), ($1, $3)",
-      [id, userA, userB]
+      "INSERT INTO chat.conversation_participants (conversation_id, user_id) VALUES ($1, $2), ($3, $4)",
+      [id, userA, id, userB]
     );
     await client.query(
       "INSERT INTO chat.individual_conversation_pairs (user_a, user_b, conversation_id) VALUES ($1, $2, $3)",
@@ -287,9 +285,9 @@ app.post("/v1/conversations/:id/messages", requireUser, async (req, res) => {
   if (!(await isParticipant(conversationId, userId))) return res.status(403).json({ error: "forbidden" });
 
   const id = crypto.randomUUID();
-  const inserted = await pool.query(
+  await pool.query(
     `INSERT INTO chat.messages (id, conversation_id, sender_id, sender_name, text)
-     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+     VALUES ($1, $2, $3, $4, $5)`,
     [id, conversationId, userId, userName, text]
   );
   await pool.query(
@@ -297,6 +295,7 @@ app.post("/v1/conversations/:id/messages", requireUser, async (req, res) => {
     [conversationId, text]
   );
 
+  const inserted = await pool.query("SELECT * FROM chat.messages WHERE id = $1", [id]);
   res.status(201).json(toMessageJSON(inserted.rows[0]));
 });
 
@@ -358,9 +357,9 @@ app.get("/v1/conversations/activities", requireUser, async (req, res) => {
   );
 
   const summaries: ActivitySummary[] = await Promise.all(
-    result.rows.map(async (row) => ({
+    result.rows.map(async (row: { is_participant: boolean; next_event_date?: string | null }) => ({
       conversation: await toConversationJSON(row),
-      isParticipant: row.is_participant,
+      isParticipant: Boolean(row.is_participant),
       nextEventDate: row.next_event_date ? new Date(row.next_event_date).toISOString() : null
     }))
   );
@@ -407,10 +406,10 @@ app.post("/v1/admin/events", requireInternal, async (req, res) => {
   if (!conversationId || !title || !startDate) return res.status(422).json({ error: "invalidPayload" });
 
   const id = crypto.randomUUID();
-  const inserted = await pool.query(
+  await pool.query(
     `INSERT INTO chat.events (id, conversation_id, title, event_description, start_date, end_date, location)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [id, conversationId, title, eventDescription ?? "", startDate, endDate ?? null, location ?? ""]
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [id, conversationId, title, eventDescription ?? "", new Date(startDate), endDate ? new Date(endDate) : null, location ?? ""]
   );
 
   for (const attendee of attendees ?? []) {
@@ -420,6 +419,7 @@ app.post("/v1/admin/events", requireInternal, async (req, res) => {
     );
   }
 
+  const inserted = await pool.query("SELECT * FROM chat.events WHERE id = $1", [id]);
   res.status(201).json(await toEventJSON(inserted.rows[0]));
 });
 
