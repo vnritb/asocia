@@ -136,14 +136,58 @@ variables → Actions) y descomentes el contenido del archivo.
 
 ## Tests
 
+### Tests de iOS
+
 - **Unit**: Swift Testing (`AsociaTests/`). `Cmd+U` o
   `xcodebuild test -scheme "Asocia (Mock)" -only-testing:AsociaTests`.
 - **UI**: XCUITest (`AsociaUITests/`), arranca la app con estado limpio
   gracias al launch argument `-UITEST_RESET_STATE`.
-- **Backend**: `cd backend && npm install && npm run typecheck && npm run build`.
+
+### Tests del Backend
+
+```bash
+cd backend
+
+# Configurar base de datos de test (solo primera vez)
+./scripts/setup-test-db.sh
+
+# Todos los tests
+npm test
+
+# Solo tests unitarios (lógica de negocio, sin servicios)
+npm run test:unit
+
+# Solo tests de integración (requiere servicios corriendo)
+docker compose up -d
+npm run test:integration
+
+# Con coverage
+npm run test:coverage
+
+# Type checking
+npm run typecheck
+```
+
+El backend incluye:
+- ✅ **Tests unitarios** de validación de datos, lógica de negocio y repositorios (con mocks)
+- ✅ **Tests de integración** de endpoints HTTP y comunicación entre servicios
+- ✅ Tests de los 4 microservicios: membership, chat, translation y api-gateway
+- ✅ Configuración con Vitest, supertest y base de datos de test
+
+Ver detalles en [`backend/README.md`](backend/README.md).
 
 ## Trabajar con Claude en Xcode
 
 Xcode 26.3+ incluye integración nativa con el Claude Agent SDK directamente
 en el IDE — no hace falta VS Code para este proyecto. Ver
 `docs/ARQUITECTURA.md`, sección "Claude en Xcode".
+
+## Log
+1 Mañana definir el mvp y generar el código
+1 tarde Repositorio, resolver incidencias y hacer funcionar el proyecto en esquema mock
+1 tarde: Arreglar y ejecutar todos los tests en esquema mock
+Unos minutos: Tests completos del backend implementados (unitarios + integración)
+1 Mañana: Cambio de entorno, y organizar y ejecutar tests unitarios y de integración
+Pendiente:
+- Ejecutar app en modo local con servidores
+

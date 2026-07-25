@@ -1,0 +1,35 @@
+{
+  "name": "asocia-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:gateway": "npm run dev -w api-gateway",
+    "dev:membership": "npm run dev -w membership",
+    "dev:chat": "npm run dev -w chat",
+    "dev:translation": "npm run dev -w translation",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "build": "npm run build -ws --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --include '**/*.unit.test.ts'",
+    "test:integration": "vitest run --include '**/*.integration.test.ts'",
+    "test:coverage": "vitest run --coverage",
+    "test:all": "npm run typecheck && npm run test"
+  },
+  "workspaces": [
+    "packages/shared",
+    "services/api-gateway",
+    "services/membership",
+    "services/chat",
+    "services/translation"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/supertest": "^6.0.2",
+    "@vitest/coverage-v8": "^1.0.4",
+    "supertest": "^6.3.3",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  }
+}
