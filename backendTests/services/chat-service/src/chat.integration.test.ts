@@ -223,7 +223,7 @@ describe("chat-service Integration", () => {
       const activity = await request(baseURL)
         .post("/v1/conversations/activity")
         .set(userHeaders(creator, "Creador"))
-        .send({ title: "Sortida de muntanya", participantIds: [] })
+        .send({ title: "Sortida de muntanya", participantIds: [randomUUID()] })
         .expect(201);
 
       const listed = await request(baseURL)

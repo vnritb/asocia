@@ -55,24 +55,39 @@ async function requireActiveMember(req: Request, res: Response, next: NextFuncti
   }
 }
 
-// Rutas de Chat: requieren alta confirmada.
+// Rutas de Chat: requieren alta confirmada. El middleware de auth sí puede
+// montarse por path (no le importa que Express le recorte el prefijo), pero
+// el proxy necesita la URL completa, así que va aparte con `pathFilter` en
+// vez de montarlo con `app.use("/v1/...", proxy)`: http-proxy-middleware v3
+// reenvía `req.url` tal cual lo ve, y `app.use("/prefijo", mw)` hace que
+// Express se lo entregue ya SIN el prefijo (p.ej. "/v1/members/apply" ->
+// "/apply"), así que el servicio de destino nunca vería la ruta real.
+app.use(["/v1/directory", "/v1/conversations", "/v1/events"], requireActiveMember);
 app.use(
-  ["/v1/directory", "/v1/conversations", "/v1/events"],
-  requireActiveMember,
-  createProxyMiddleware({ target: CHAT_SERVICE_URL, changeOrigin: true })
+  createProxyMiddleware({
+    target: CHAT_SERVICE_URL,
+    changeOrigin: true,
+    pathFilter: ["/v1/directory", "/v1/conversations", "/v1/events"]
+  })
 );
 
 // Alta de socio (pública) y ficha propia (el propio membership-service
 // valida el Bearer token) se proxean tal cual.
 app.use(
-  "/v1/members",
-  createProxyMiddleware({ target: MEMBERSHIP_SERVICE_URL, changeOrigin: true })
+  createProxyMiddleware({
+    target: MEMBERSHIP_SERVICE_URL,
+    changeOrigin: true,
+    pathFilter: "/v1/members"
+  })
 );
 
 // Traducción de idioma (pública).
 app.use(
-  "/v1/translate",
-  createProxyMiddleware({ target: TRANSLATION_SERVICE_URL, changeOrigin: true })
+  createProxyMiddleware({
+    target: TRANSLATION_SERVICE_URL,
+    changeOrigin: true,
+    pathFilter: "/v1/translate"
+  })
 );
 
 // ---------------------------------------------------------------------------
@@ -84,15 +99,21 @@ app.use(
 // ---------------------------------------------------------------------------
 
 // OJO con el orden: las rutas más específicas van antes que el genérico
-// "/v1/admin", porque `app.use` hace match por prefijo (si "/v1/admin"
-// fuera lo primero, se comería también las peticiones de "/v1/admin/events").
+// "/v1/admin", porque si no, el filtro de "/v1/admin" también se comería
+// las peticiones de "/v1/admin/events".
 app.use(
-  "/v1/admin/events",
-  createProxyMiddleware({ target: CHAT_SERVICE_URL, changeOrigin: true })
+  createProxyMiddleware({
+    target: CHAT_SERVICE_URL,
+    changeOrigin: true,
+    pathFilter: "/v1/admin/events"
+  })
 );
 app.use(
-  "/v1/admin",
-  createProxyMiddleware({ target: MEMBERSHIP_SERVICE_URL, changeOrigin: true })
+  createProxyMiddleware({
+    target: MEMBERSHIP_SERVICE_URL,
+    changeOrigin: true,
+    pathFilter: "/v1/admin"
+  })
 );
 
 export { app };
