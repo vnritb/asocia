@@ -1,25 +1,17 @@
-import { startMockedStack, type MockStackURLs } from "./mockStack";
-
-export interface IntegrationTarget extends MockStackURLs {
+export interface IntegrationTarget {
+  gateway: string;
+  membership: string;
+  chat: string;
+  translation: string;
   close(): Promise<void>;
 }
 
 /**
- * Resuelve contra qué URLs deben correr los tests de integración.
- *
- * - Modo "mock" (INTEGRATION_TARGET=mock, ver vitest.integration.mock.config.ts):
- *   levanta los 4 servicios reales en memoria (ver mockStack.ts) y devuelve
- *   sus puertos efímeros.
- * - Modo "real" (por defecto, ver vitest.integration.real.config.ts): usa
- *   las URLs de servicios ya levantados por separado (docker-compose / `npm
- *   run dev:*`), vía las variables de entorno *_SERVICE_URL, con los mismos
- *   valores por defecto que usa cada servicio en local.
+ * URLs de los 4 servicios ya levantados por separado (docker compose / `npm
+ * run dev:*`), con los mismos valores por defecto que usa cada uno en
+ * local. Sobreescribibles con las variables de entorno *_SERVICE_URL.
  */
 export async function resolveIntegrationTarget(): Promise<IntegrationTarget> {
-  if (process.env.INTEGRATION_TARGET === "mock") {
-    return startMockedStack();
-  }
-
   return {
     gateway: process.env.API_GATEWAY_URL ?? "http://localhost:4000",
     membership: process.env.MEMBERSHIP_SERVICE_URL ?? "http://localhost:4001",
