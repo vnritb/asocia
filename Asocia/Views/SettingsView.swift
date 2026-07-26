@@ -11,7 +11,6 @@ struct SettingsView: View {
     @Query private var members: [Member]
 
     @State private var languages = WorldLanguages.all()
-    @State private var showErrorAlert = false
     @State private var showConfirmationAlert = false
     
     var body: some View {
@@ -38,35 +37,17 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.navigationLink)
-
-                    if loc.isTranslating {
-                        HStack {
-                            ProgressView()
-                            Text(loc.t("settings.language.translating"))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
                 } footer: {
                     Text(loc.t("settings.language.footer"))
                 }
             }
             .navigationTitle(loc.t("settings.navTitle"))
-            .alert(loc.t("settings.language.errorTitle"), isPresented: $showErrorAlert) {
-                Button(loc.t("common.ok")) {
-                    showErrorAlert = false
-                }
-            } message: {
-                Text(loc.translationError ?? "")
-            }
             .alert("Alta Confirmada", isPresented: $showConfirmationAlert) {
                 Button(loc.t("common.ok")) {
                     showConfirmationAlert = false
                 }
             } message: {
                 Text("El alta ha sido confirmada. El usuario ahora tiene estado 'active' y acceso completo a la aplicación.")
-            }
-            .onChange(of: loc.translationError) { _, newValue in
-                showErrorAlert = (newValue != nil)
             }
         }
     }
@@ -114,7 +95,7 @@ struct SettingsView: View {
     private var languageBinding: Binding<String> {
         Binding(
             get: { loc.currentLanguageCode },
-            set: { newCode in Task { await loc.setLanguage(newCode) } }
+            set: { newCode in loc.setLanguage(newCode) }
         )
     }
     

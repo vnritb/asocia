@@ -12,14 +12,10 @@ struct WorldLanguagesTests {
         #expect(firstFiveCodes == ["es", "ca", "gl", "eu", "en"])
         
     }
-    
-    //@Test("Sólo hay 5 idiomas")
 
-    @Test("No hay códigos de idioma duplicados en toda la lista")
+    @Test("Sólo hay 5 idiomas en la lista")
     func noDuplicateCodes() {
-        let languages = WorldLanguages.all()
-        let codes = languages.map(\.code)
-        #expect(codes.count == Set(codes).count)
+        #expect(WorldLanguages.all().count == 5)
     }
     
     

@@ -28,6 +28,14 @@ struct AsociaApp: App {
             print("🧪 UI Test mode: Usando contenedor en memoria y limpiando UserDefaults...")
             UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
             self.modelContainer = PersistenceController.inMemoryContainer()
+            
+            // Configurar idioma para UI tests si se especifica
+            if let languageIndex = CommandLine.arguments.firstIndex(of: "-UITEST_LANGUAGE"),
+               languageIndex + 1 < CommandLine.arguments.count {
+                let language = CommandLine.arguments[languageIndex + 1]
+                UserDefaults.standard.set(language, forKey: "AppLanguage")
+                print("🧪 UI Test: Idioma configurado a '\(language)'")
+            }
         } else {
             self.modelContainer = PersistenceController.shared
         }
