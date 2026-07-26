@@ -80,7 +80,13 @@ struct AsociaApp: App {
                 #if DEBUG
                 print("🚀 AsociaApp.task iniciado")
                 let isUITesting = CommandLine.arguments.contains("-UITEST_RESET_STATE")
+                
+                // Cargar datos de prueba si es necesario (solo en modo debug, no en UI tests)
+                if !isUITesting {
+                    PersistenceController.loadSampleDataIfNeeded()
+                }
                 #endif
+                
                 // El SyncEngine necesita el ModelContext, que solo está
                 // disponible una vez el WindowGroup ha inyectado el
                 // modelContainer en el entorno.
