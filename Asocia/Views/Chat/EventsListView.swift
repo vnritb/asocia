@@ -116,6 +116,6 @@ struct EventsListView: View {
             conversation: Conversation(id: UUID(), kind: .activity, title: "Excursiones", participantIDs: [], lastMessagePreview: "", lastMessageAt: nil),
             currentUserID: UUID()
         )
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
     }
 }

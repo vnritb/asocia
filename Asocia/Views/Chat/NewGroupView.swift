@@ -94,5 +94,5 @@ struct NewGroupView: View {
 
 #Preview {
     NewGroupView { _ in }
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
 }

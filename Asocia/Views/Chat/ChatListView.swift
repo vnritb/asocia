@@ -199,5 +199,5 @@ private struct ConversationRow: View {
 
 #Preview {
     ChatListView(member: Member(firstName: "Ana", firstSurname: "García", membershipStatus: .active))
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
 }

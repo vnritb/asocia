@@ -90,5 +90,5 @@ struct UserSearchView: View {
 
 #Preview {
     UserSearchView { _ in }
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
 }

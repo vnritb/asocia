@@ -296,6 +296,6 @@ struct SignupView: View {
 
 #Preview {
     SignupView()
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
         .modelContainer(PersistenceController.inMemoryContainer())
 }

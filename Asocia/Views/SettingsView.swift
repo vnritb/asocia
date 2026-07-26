@@ -4,9 +4,9 @@ import SwiftData
 /// Pantalla de Ajustes. De momento solo tiene el selector de idioma, pero
 /// es el sitio natural donde añadir más preferencias en el futuro.
 struct SettingsView: View {
-    @Environment(LocalizationManager.self) private var loc
     @Environment(\.appEnvironment) private var appEnvironment
     @Environment(\.modelContext) private var modelContext
+    @Environment(LocalizationManager.self) private var loc
     
     @Query private var members: [Member]
 
@@ -174,14 +174,14 @@ struct SettingsView: View {
     container.mainContext.insert(member)
     
     return SettingsView()
-        .environment(LocalizationManager(translationClient: MockTranslationClient()))
         .environment(\.appEnvironment, .mock)
+        .environment(LocalizationManager())
         .modelContainer(container)
 }
 
 #Preview("Settings - Sin Usuario") {
     SettingsView()
-        .environment(LocalizationManager(translationClient: MockTranslationClient()))
         .environment(\.appEnvironment, .mock)
+        .environment(LocalizationManager())
         .modelContainer(PersistenceController.inMemoryContainer())
 }

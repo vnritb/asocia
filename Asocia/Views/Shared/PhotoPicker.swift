@@ -210,5 +210,5 @@ enum ImageCompression {
 
 #Preview {
     MemberPhotoPicker(photoData: .constant(nil))
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
 }

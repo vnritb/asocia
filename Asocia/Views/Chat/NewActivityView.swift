@@ -108,5 +108,5 @@ struct NewActivityView: View {
 
 #Preview {
     NewActivityView { _ in }
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
 }

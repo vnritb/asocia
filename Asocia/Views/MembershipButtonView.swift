@@ -53,5 +53,5 @@ struct MembershipButtonView: View {
 
 #Preview {
     MembershipButtonView()
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
 }

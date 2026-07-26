@@ -150,6 +150,6 @@ struct EventDetailView: View {
             ),
             currentUserID: UUID()
         )
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
     }
 }

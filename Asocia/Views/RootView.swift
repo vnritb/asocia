@@ -61,6 +61,6 @@ private struct MainTabView: View {
 
 #Preview {
     RootView()
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
         .modelContainer(PersistenceController.inMemoryContainer())
 }

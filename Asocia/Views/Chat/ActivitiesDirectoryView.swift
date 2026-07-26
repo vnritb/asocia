@@ -161,5 +161,5 @@ private struct ActivityCard: View {
 
 #Preview {
     ActivitiesDirectoryView(currentUserID: UUID())
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
 }

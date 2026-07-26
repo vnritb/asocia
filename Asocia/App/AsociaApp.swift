@@ -9,9 +9,8 @@ struct AsociaApp: App {
     private let environment: AppEnvironment
     private let apiClient: MembershipAPIClient
     private let chatService: ChatServicing
-    private let translationClient: TranslationServicing
 
-    @State private var localizationManager: LocalizationManager
+    @State private var localizationManager = LocalizationManager()
     @State private var syncEngine: SyncEngine?
     @State private var showSplash = true
 
@@ -20,7 +19,7 @@ struct AsociaApp: App {
     /// del scheme activo — ver `project.yml` y `AppEnvironment.swift`).
     /// Es el ÚNICO sitio del proyecto donde se decide esto: el resto de la
     /// app solo conoce los protocolos (`MembershipAPIClient`,
-    /// `ChatServicing`, `TranslationServicing`), nunca la implementación.
+    /// `ChatServicing`), nunca la implementación.
     init() {
         // Limpiar datos persistentes y usar contenedor en memoria si se ejecutan UI tests
         #if DEBUG
@@ -41,22 +40,17 @@ struct AsociaApp: App {
 
         let apiClient: MembershipAPIClient
         let chatService: ChatServicing
-        let translationClient: TranslationServicing
 
         if env.usesMockServices {
             apiClient = MockMembershipAPIClient()
             chatService = MockChatService()
-            translationClient = MockTranslationClient()
         } else {
             apiClient = APIClient(baseURL: env.apiBaseURL)
             chatService = ChatAPIClient(baseURL: env.apiBaseURL)
-            translationClient = TranslationAPIClient(baseURL: env.apiBaseURL)
         }
 
         self.apiClient = apiClient
         self.chatService = chatService
-        self.translationClient = translationClient
-        _localizationManager = State(initialValue: LocalizationManager(translationClient: translationClient))
 
         #if DEBUG
         print("Asocia arrancada en entorno: \(env.displayName) (\(env.rawValue))")
@@ -122,8 +116,8 @@ struct AsociaApp: App {
 
 // Petites claus d'entorn per injectar dependències que no són `@Observable`
 // (SyncEngine es crea de forma asíncrona perquè depèn del ModelContext;
-// APIClient, ChatAPIClient/MockChatService i TranslationAPIClient són
-// `actor`s, que no poden adoptar `@Observable`).
+// APIClient i ChatAPIClient/MockChatService són `actor`s, que no poden
+// adoptar `@Observable`).
 private struct SyncEngineKey: EnvironmentKey {
     static let defaultValue: SyncEngine? = nil
 }

@@ -220,6 +220,6 @@ private struct LabeledField: View {
     )
     container.mainContext.insert(member)
     return MemberProfileView(member: member)
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
         .modelContainer(container)
 }

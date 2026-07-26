@@ -134,6 +134,6 @@ private struct MessageBubble: View {
             title: "Marta Puig",
             currentUserID: UUID()
         )
-        .environment(LocalizationManager(translationClient: TranslationAPIClient()))
+        .environment(LocalizationManager())
     }
 }
