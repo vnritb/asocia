@@ -121,15 +121,7 @@ Dentro de una sala de actividad, un botón "Ver eventos de la actividad" abre `E
 - **Backend real**: la solicitud se guarda en `chat.activity_join_requests`, pendiente de aprobación manual desde el futuro backoffice — no se concede acceso automáticamente.
 - **Modo mock de la app**: para poder demostrar el flujo completo sin un backoffice construido todavía, la solicitud se aprueba al instante. Esta diferencia está documentada explícitamente en el código (`MockChatService.requestAccessToActivity`) para que no se confunda con el comportamiento real.
 
-## 11. Idioma dinámico con traducción por IA
-
-Toda la interfaz está en español por defecto (diccionario base en `Asocia/Resources/Localization/es.json`). Desde Ajustes → Idioma, el socio puede elegir cualquier idioma del mundo; si no es uno de los ya empaquetados, la app envía el diccionario completo a `translation-service`, que lo traduce con Claude (Anthropic) y lo guarda en caché — la siguiente persona que elija el mismo idioma lo recibe al instante.
-
-**Orden del selector de idioma**: español, catalán, gallego, euskera, inglés; después los 10 idiomas más hablados del mundo (Ethnologue 2025: chino mandarín, hindi, árabe, francés, bengalí, portugués, ruso, indonesio, urdu y alemán, sin repetir español/inglés); y finalmente el resto de idiomas por orden alfabético. La lista se genera con `Locale.LanguageCode.isoLanguageCodes` (`WorldLanguages.swift`), no es una tabla escrita a mano — verificado con `WorldLanguagesTests`.
-
-En el entorno `.mock`, `MockTranslationClient` simula la traducción anteponiendo el código de idioma al texto (p. ej. `"[fr] Hola"`), sin depender de una clave de Anthropic, para poder probar el flujo sin backend.
-
-## 12. Entornos: mock / local / staging / producción
+## 11. Entornos: mock / local / staging / producción
 
 `AppEnvironment` (`Asocia/App/AppEnvironment.swift`) decide, una única vez al arrancar, qué implementación de cada servicio se usa:
 
@@ -144,7 +136,7 @@ Cada entorno tiene su propio scheme de Xcode (`Asocia (Mock)`, `Asocia (Local)`,
 
 El modo mock simula además la aprobación del alta (unos segundos después de enviarla, pasa de `pendingApproval` a `active` solo) para poder ver el ciclo completo sin backoffice real.
 
-## 13. Control de versiones y CI/CD
+## 12. Control de versiones y CI/CD
 
 El proyecto está preparado como repositorio Git con GitHub Actions (`.github/workflows/`):
 

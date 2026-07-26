@@ -44,8 +44,35 @@ actor ChatAPIClient: ChatServicing {
     // vacía para cumplir el protocolo `ChatServicing`.
     func configureCurrentUser(id: UUID, name: String, photoData: Data?) async {}
 
-    func searchDirectory(query: String) async -> [ChatUser] {
-        (try? await get("/v1/directory?query=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")")) ?? []
+    func searchDirectory(query: String, page: Int = 0, pageSize: Int = 10) async -> (users: [ChatUser], hasMore: Bool) {
+        #if DEBUG
+        print("📡 [CHAT API] searchDirectory - query: '\(query)', page: \(page), pageSize: \(pageSize)")
+        #endif
+        
+        let encodedQuery = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let path = "/v1/directory?query=\(encodedQuery)&page=\(page)&pageSize=\(pageSize)"
+        
+        do {
+            struct DirectoryResponse: Decodable {
+                let users: [ChatUser]
+                let hasMore: Bool
+            }
+            
+            let response: DirectoryResponse = try await get(path)
+            
+            #if DEBUG
+            print("   ✅ Recibidos \(response.users.count) usuarios, hasMore: \(response.hasMore)")
+            #endif
+            
+            return (users: response.users, hasMore: response.hasMore)
+        } catch {
+            #if DEBUG
+            print("   ❌ Error: \(error.localizedDescription)")
+            #endif
+            
+            // Fallback: devolver lista vacía en caso de error
+            return (users: [], hasMore: false)
+        }
     }
 
     func fetchConversations() async -> [Conversation] {

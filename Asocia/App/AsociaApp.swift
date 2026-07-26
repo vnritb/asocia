@@ -9,6 +9,7 @@ struct AsociaApp: App {
     private let environment: AppEnvironment
     private let apiClient: MembershipAPIClient
     private let chatService: ChatServicing
+    private let authService: AuthService
 
     @State private var localizationManager = LocalizationManager()
     @State private var syncEngine: SyncEngine?
@@ -59,6 +60,7 @@ struct AsociaApp: App {
 
         self.apiClient = apiClient
         self.chatService = chatService
+        self.authService = AuthService(baseURL: env.apiBaseURL)
 
         #if DEBUG
         print("Asocia arrancada en entorno: \(env.displayName) (\(env.rawValue))")
@@ -122,6 +124,7 @@ struct AsociaApp: App {
             .environment(\.syncEngine, syncEngine)
             .environment(\.apiClient, apiClient)
             .environment(\.chatService, chatService)
+            .environment(\.authService, authService)
             .environment(\.appEnvironment, environment)
         }
         .modelContainer(modelContainer)

@@ -38,7 +38,10 @@ struct MembershipButtonView: View {
             .padding(.top, 44)
         }
         .fullScreenCover(isPresented: $showSignup) {
-            SignupView()
+            SignupView {
+                // Al registrarse exitosamente, cerrar el formulario
+                showSignup = false
+            }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()

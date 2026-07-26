@@ -28,6 +28,11 @@ final class Member {
     var secondaryEmail: String
     var mobilePhone: String
     var landlinePhone: String
+    
+    // Autenticación (password hasheado, nunca en texto plano)
+    // NOTA: Este campo NO se sincroniza con el backend en updates normales
+    // Solo se usa en el registro inicial
+    var passwordHash: String
 
     // Adreça
     var address: String
@@ -109,6 +114,7 @@ final class Member {
         secondaryEmail: String = "",
         mobilePhone: String = "",
         landlinePhone: String = "",
+        passwordHash: String = "",
         address: String = "",
         postalCode: String = "",
         city: String = "",
@@ -143,6 +149,7 @@ final class Member {
         self.secondaryEmail = secondaryEmail
         self.mobilePhone = mobilePhone
         self.landlinePhone = landlinePhone
+        self.passwordHash = passwordHash
         self.address = address
         self.postalCode = postalCode
         self.city = city

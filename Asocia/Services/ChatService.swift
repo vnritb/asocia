@@ -9,7 +9,7 @@ import Foundation
 /// darrere hi ha el mock (`MockChatService`) o un client real.
 protocol ChatServicing: Sendable {
     func configureCurrentUser(id: UUID, name: String, photoData: Data?) async
-    func searchDirectory(query: String) async -> [ChatUser]
+    func searchDirectory(query: String, page: Int, pageSize: Int) async -> (users: [ChatUser], hasMore: Bool)
     func fetchConversations() async -> [Conversation]
     func openOrCreateIndividualConversation(with otherUserID: UUID) async throws -> Conversation
     func createGroupConversation(name: String, participantIDs: [UUID]) async throws -> Conversation
@@ -96,15 +96,34 @@ actor MockChatService: ChatServicing {
     /// servir chat-service amb pg_trgm al backend real). Així, cercar
     /// "Pedro Gimenez" troba abans "Pedro Jiménez" (similitud alta amb tot
     /// el nom) que "Antonio Giménez" (només coincideix el cognom).
-    func searchDirectory(query: String) async -> [ChatUser] {
+    /// 
+    /// Con paginación para soportar scroll infinito.
+    func searchDirectory(query: String, page: Int = 0, pageSize: Int = 10) async -> (users: [ChatUser], hasMore: Bool) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return directory }
-
-        return directory
-            .map { user in (user: user, score: StringSimilarity.score(user.fullName, trimmed)) }
-            .filter { $0.score > 0.15 || $0.user.fullName.localizedCaseInsensitiveContains(trimmed) }
-            .sorted { $0.score > $1.score }
-            .map(\.user)
+        let allResults: [ChatUser]
+        
+        if trimmed.isEmpty {
+            allResults = directory
+        } else {
+            allResults = directory
+                .map { user in (user: user, score: StringSimilarity.score(user.fullName, trimmed)) }
+                .filter { $0.score > 0.15 || $0.user.fullName.localizedCaseInsensitiveContains(trimmed) }
+                .sorted { $0.score > $1.score }
+                .map(\.user)
+        }
+        
+        // Calcular paginación
+        let startIndex = page * pageSize
+        let endIndex = min(startIndex + pageSize, allResults.count)
+        
+        guard startIndex < allResults.count else {
+            return (users: [], hasMore: false)
+        }
+        
+        let pageUsers = Array(allResults[startIndex..<endIndex])
+        let hasMore = endIndex < allResults.count
+        
+        return (users: pageUsers, hasMore: hasMore)
     }
 
     // MARK: - Converses
@@ -304,9 +323,16 @@ actor MockChatService: ChatServicing {
 
     private static func seedDirectory() -> [ChatUser] {
         [
+            // Usuarios 1-10: Catalanes (originales + ampliados)
             "Marta Puig", "Jordi Serra", "Laia Font", "Pol Vidal",
             "Núria Camps", "Àlex Ribas", "Clara Soler", "Bernat Roca",
-            "Gemma Vila", "Oriol Mas", "Pedro Jiménez", "Antonio Giménez"
+            "Gemma Vila", "Oriol Mas",
+            
+            // Usuarios 11-20: Españoles
+            "Pedro Jiménez", "Antonio Giménez", "María González", 
+            "Carlos Rodríguez", "Laura Martínez", "David López",
+            "Carmen Sánchez", "Miguel Fernández", "Elena García",
+            "Javier Torres"
         ].map { ChatUser(id: UUID(), fullName: $0, photoData: nil) }
     }
 }

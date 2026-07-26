@@ -114,10 +114,10 @@ struct ChatListView: View {
 
     private func reload() async {
         async let fetchedConversations = chatService.fetchConversations()
-        async let fetchedDirectory = chatService.searchDirectory(query: "")
-        let (convs, directory) = await (fetchedConversations, fetchedDirectory)
+        async let fetchedDirectory = chatService.searchDirectory(query: "", page: 0, pageSize: 100)
+        let (convs, directoryResult) = await (fetchedConversations, fetchedDirectory)
         conversations = convs
-        directoryByID = Dictionary(uniqueKeysWithValues: directory.map { ($0.id, $0) })
+        directoryByID = Dictionary(uniqueKeysWithValues: directoryResult.users.map { ($0.id, $0) })
         isLoading = false
     }
 

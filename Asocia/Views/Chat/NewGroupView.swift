@@ -64,7 +64,8 @@ struct NewGroupView: View {
                 }
             }
             .task {
-                directory = await chatService.searchDirectory(query: "")
+                let result = await chatService.searchDirectory(query: "", page: 0, pageSize: 100)
+                directory = result.users
             }
         }
     }

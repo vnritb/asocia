@@ -2,39 +2,72 @@ import SwiftUI
 import SwiftData
 
 /// Punto de entrada tras el splash: decide qué pantalla mostrar según si
-/// existe un `Member` local y su `membershipStatus`.
+/// hay token válido y existe un `Member` local.
 ///
-/// - Sin `Member`: botón "Asocia" a pantalla completa.
-/// - `Member` con alta pendiente o rechazada: solo la ficha (sin Chat).
-/// - `Member` con alta confirmada (`active`): ficha + Chat + Ajustes, en un `TabView`.
+/// Flujo:
+/// 1. Sin token → LoginView
+/// 2. Con token pero sin Member → LoginView (token inválido/expirado)
+/// 3. Con token y Member → MainTabView o MemberProfileView según estado
 struct RootView: View {
     @Query private var members: [Member]
+    @Environment(\.authService) private var authService
+    
+    @State private var isCheckingAuth = true
+    @State private var hasValidAuth = false
 
     private var currentMember: Member? { members.first }
 
     var body: some View {
         Group {
-            if let member = currentMember, member.membershipStatus.showsMemberScreen {
+            if isCheckingAuth {
+                // Verificando autenticación
+                ProgressView("Cargando...")
+            } else if !hasValidAuth {
+                // Sin autenticación → Mostrar Login
+                LoginView {
+                    // Al hacer login exitoso, actualizar estado
+                    checkAuth()
+                }
+            } else if let member = currentMember {
+                // Autenticado y con miembro
                 if member.membershipStatus.hasChatAccess {
                     MainTabView(member: member)
                 } else {
                     MemberProfileView(member: member)
                 }
             } else {
-                MembershipButtonView()
+                // Autenticado pero sin miembro (no debería pasar)
+                LoginView {
+                    checkAuth()
+                }
             }
         }
+        .animation(.default, value: hasValidAuth)
         .animation(.default, value: currentMember?.membershipStatus)
-        .onAppear {
-            #if DEBUG
-            print("✅ RootView apareció")
-            print("   Miembros encontrados: \(members.count)")
-            if let member = currentMember {
-                print("   Estado del miembro: \(member.membershipStatus)")
-            } else {
-                print("   Sin miembro → mostrando botón Asocia")
-            }
-            #endif
+        .task {
+            await checkAuthentication()
+        }
+    }
+    
+    private func checkAuthentication() async {
+        // Verificar si hay token válido
+        hasValidAuth = await authService.hasValidToken()
+        
+        #if DEBUG
+        print("✅ RootView - Verificación de autenticación")
+        print("   Token válido: \(hasValidAuth)")
+        print("   Miembros encontrados: \(members.count)")
+        if let member = currentMember {
+            print("   Estado del miembro: \(member.membershipStatus)")
+        }
+        #endif
+        
+        isCheckingAuth = false
+    }
+    
+    private func checkAuth() {
+        Task {
+            hasValidAuth = await authService.hasValidToken()
         }
     }
 }
@@ -62,5 +95,6 @@ private struct MainTabView: View {
 #Preview {
     RootView()
         .environment(LocalizationManager())
+        .environment(\.authService, AuthService())
         .modelContainer(PersistenceController.inMemoryContainer())
 }

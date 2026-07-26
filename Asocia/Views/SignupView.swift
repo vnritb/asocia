@@ -4,9 +4,8 @@ import SwiftData
 /// Formulario de alta de nuevo socio (sin pago).
 ///
 /// Orden de operaciones (ver docs/ARQUITECTURA.md):
-/// 1. Validar el formulario: nombre + primer apellido, y al menos un
-///    contacto (email, móvil o fijo). El resto de campos son opcionales.
-/// 2. Enviar la solicitud al backend (`apiClient.submitMembershipApplication`),
+/// 1. Validar el formulario: nombre + primer apellido, email y contraseña.
+/// 2. Enviar la solicitud al backend (`authService.register`),
 ///    que crea el registro en estado `pendingApproval` y devuelve un token de sesión.
 /// 3. Guardar el `Member` resultante en SwiftData (local, offline-first) y
 ///    cerrar el formulario; `RootView` pasa automáticamente a mostrar la
@@ -15,10 +14,12 @@ import SwiftData
 ///    backoffice; al confirmarla, el indicador provisional desaparece y se
 ///    habilita el acceso al Chat.
 struct SignupView: View {
-    @Environment(\.apiClient) private var apiClient
+    @Environment(\.authService) private var authService
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(LocalizationManager.self) private var loc
+    
+    let onSuccess: () -> Void
 
     @State private var photoData: Data?
 
@@ -27,6 +28,8 @@ struct SignupView: View {
     @State private var secondSurname = ""
 
     @State private var email = ""
+    @State private var password = ""
+    @State private var confirmPassword = ""
     @State private var secondaryEmail = ""
     @State private var mobilePhone = ""
     @State private var landlinePhone = ""
@@ -56,10 +59,12 @@ struct SignupView: View {
     @State private var errorMessage: String?
 
     private var isFormValid: Bool {
-        Member.isValidApplication(
-            firstName: firstName, firstSurname: firstSurname,
-            email: email, mobilePhone: mobilePhone, landlinePhone: landlinePhone
-        )
+        !firstName.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !firstSurname.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !email.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !password.isEmpty &&
+        password == confirmPassword &&
+        password.count >= 6
     }
 
     var body: some View {
@@ -105,6 +110,15 @@ struct SignupView: View {
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .accessibilityIdentifier("signup_email")
+                    
+                    SecureField(loc.t("signup.field.password"), text: $password)
+                        .textContentType(.newPassword)
+                        .accessibilityIdentifier("signup_password")
+                    
+                    SecureField(loc.t("signup.field.confirmPassword"), text: $confirmPassword)
+                        .textContentType(.newPassword)
+                        .accessibilityIdentifier("signup_confirmPassword")
+                    
                     TextField(loc.t("signup.field.email2"), text: $secondaryEmail)
                         .textContentType(.emailAddress)
                         .keyboardType(.emailAddress)
@@ -215,7 +229,19 @@ struct SignupView: View {
 
         do {
             let localID = UUID()
-            let dto = MemberDTO(
+            
+            // Registrar usuario en el backend de autenticación
+            let response = try await authService.register(
+                id: localID,
+                email: email,
+                password: password,
+                firstName: firstName,
+                firstSurname: firstSurname
+            )
+
+            // Crear member local con todos los datos del formulario
+            let passwordHash = AuthService.hashPassword(password)
+            let member = Member(
                 id: localID,
                 firstName: firstName,
                 firstSurname: firstSurname,
@@ -224,6 +250,7 @@ struct SignupView: View {
                 secondaryEmail: secondaryEmail,
                 mobilePhone: mobilePhone,
                 landlinePhone: landlinePhone,
+                passwordHash: passwordHash,
                 address: address,
                 postalCode: postalCode,
                 city: city,
@@ -239,55 +266,21 @@ struct SignupView: View {
                 instagramUsername: instagramUsername,
                 xUsername: xUsername,
                 tiktokUsername: tiktokUsername,
-                photoBase64: photoData?.base64EncodedString(),
+                photoData: photoData,
                 isSearchable: isSearchable,
                 associationID: nil,
                 isVisibleToOtherAssociations: false,
-                membershipStatus: .pendingApproval,
-                joinDate: nil,
-                rejectionReason: nil,
-                updatedAt: .now
-            )
-
-            let response = try await apiClient.submitMembershipApplication(dto)
-
-            let member = Member(
-                id: response.member.id,
-                firstName: response.member.firstName,
-                firstSurname: response.member.firstSurname,
-                secondSurname: response.member.secondSurname,
-                email: response.member.email,
-                secondaryEmail: response.member.secondaryEmail,
-                mobilePhone: response.member.mobilePhone,
-                landlinePhone: response.member.landlinePhone,
-                address: response.member.address,
-                postalCode: response.member.postalCode,
-                city: response.member.city,
-                province: response.member.province,
-                birthDate: response.member.birthDate,
-                entryYear: response.member.entryYear,
-                exitYear: response.member.exitYear,
-                promotion: response.member.promotion,
-                profession: response.member.profession,
-                workplace: response.member.workplace,
-                iban: response.member.iban,
-                facebookUsername: response.member.facebookUsername,
-                instagramUsername: response.member.instagramUsername,
-                xUsername: response.member.xUsername,
-                tiktokUsername: response.member.tiktokUsername,
-                photoData: photoData,
-                isSearchable: response.member.isSearchable,
-                associationID: response.member.associationID,
-                isVisibleToOtherAssociations: response.member.isVisibleToOtherAssociations,
                 membershipStatus: response.member.membershipStatus,
                 joinDate: response.member.joinDate,
                 syncStatus: .synced,
                 serverUpdatedAt: response.member.updatedAt
             )
+            
             modelContext.insert(member)
             try modelContext.save()
 
             dismiss()
+            onSuccess()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -295,7 +288,8 @@ struct SignupView: View {
 }
 
 #Preview {
-    SignupView()
+    SignupView(onSuccess: {})
         .environment(LocalizationManager())
+        .environment(\.authService, AuthService())
         .modelContainer(PersistenceController.inMemoryContainer())
 }

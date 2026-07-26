@@ -10,8 +10,8 @@ struct ChatServiceTests {
         let service = MockChatService()
         await service.configureCurrentUser(id: UUID(), name: "Jo", photoData: nil)
 
-        let directory = await service.searchDirectory(query: "")
-        let other = try #require(directory.first)
+        let directoryResult = await service.searchDirectory(query: "", page: 0, pageSize: 100)
+        let other = try #require(directoryResult.users.first)
 
         let first = try await service.openOrCreateIndividualConversation(with: other.id)
         let second = try await service.openOrCreateIndividualConversation(with: other.id)
@@ -28,8 +28,8 @@ struct ChatServiceTests {
         let service = MockChatService()
         await service.configureCurrentUser(id: UUID(), name: "Jo", photoData: nil)
 
-        let directory = await service.searchDirectory(query: "")
-        let participants = Array(directory.prefix(2)).map(\.id)
+        let directoryResult = await service.searchDirectory(query: "", page: 0, pageSize: 100)
+        let participants = Array(directoryResult.users.prefix(2)).map(\.id)
 
         let group1 = try await service.createGroupConversation(name: "Grup A", participantIDs: participants)
         let group2 = try await service.createGroupConversation(name: "Grup B", participantIDs: participants)
@@ -44,10 +44,10 @@ struct ChatServiceTests {
     func creatingGroupWithoutNameThrows() async {
         let service = MockChatService()
         await service.configureCurrentUser(id: UUID(), name: "Jo", photoData: nil)
-        let directory = await service.searchDirectory(query: "")
+        let directoryResult = await service.searchDirectory(query: "", page: 0, pageSize: 100)
 
         await #expect(throws: ChatServiceError.self) {
-            _ = try await service.createGroupConversation(name: "   ", participantIDs: [directory[0].id])
+            _ = try await service.createGroupConversation(name: "   ", participantIDs: [directoryResult.users[0].id])
         }
     }
 
@@ -57,8 +57,8 @@ struct ChatServiceTests {
         let myID = UUID()
         await service.configureCurrentUser(id: myID, name: "Jo", photoData: nil)
 
-        let directory = await service.searchDirectory(query: "")
-        let other = try #require(directory.first)
+        let directoryResult = await service.searchDirectory(query: "", page: 0, pageSize: 100)
+        let other = try #require(directoryResult.users.first)
         let conversation = try await service.openOrCreateIndividualConversation(with: other.id)
 
         let sent = try await service.sendMessage(conversationID: conversation.id, text: "Hola!")
@@ -73,17 +73,17 @@ struct ChatServiceTests {
         let service = MockChatService()
         await service.configureCurrentUser(id: UUID(), name: "Jo", photoData: nil)
 
-        let results = await service.searchDirectory(query: "marta")
-        #expect(!results.isEmpty, "La búsqueda debería devolver resultados")
+        let directoryResult = await service.searchDirectory(query: "marta", page: 0, pageSize: 100)
+        #expect(!directoryResult.users.isEmpty, "La búsqueda debería devolver resultados")
         
         // Los resultados deben contener "marta" O tener alta similitud con "marta"
-        let hasRelevantResults = results.contains { 
+        let hasRelevantResults = directoryResult.users.contains { 
             $0.fullName.localizedCaseInsensitiveContains("marta") 
         }
         #expect(hasRelevantResults, "Al menos un resultado debe contener 'marta'")
         
         // Verificar que todos los resultados son relevantes (similitud o contiene)
-        for user in results {
+        for user in directoryResult.users {
             let containsMarta = user.fullName.localizedCaseInsensitiveContains("marta")
             let hasSimilarity = StringSimilarity.score(user.fullName, "marta") > 0.15
             #expect(containsMarta || hasSimilarity, "'\(user.fullName)' debe ser relevante para 'marta'")
@@ -95,8 +95,8 @@ struct ChatServiceTests {
         let service = MockChatService()
         await service.configureCurrentUser(id: UUID(), name: "Jo", photoData: nil)
 
-        let results = await service.searchDirectory(query: "Pedro Gimenez")
-        let names = results.map(\.fullName)
+        let directoryResult = await service.searchDirectory(query: "Pedro Gimenez", page: 0, pageSize: 100)
+        let names = directoryResult.users.map(\.fullName)
         let pedroIndex = names.firstIndex(of: "Pedro Jiménez")
         let antonioIndex = names.firstIndex(of: "Antonio Giménez")
 
@@ -111,8 +111,8 @@ struct ChatServiceTests {
     func creatingActivityConversationSeedsEvents() async throws {
         let service = MockChatService()
         await service.configureCurrentUser(id: UUID(), name: "Jo", photoData: nil)
-        let directory = await service.searchDirectory(query: "")
-        let participants = Array(directory.prefix(2)).map(\.id)
+        let directoryResult = await service.searchDirectory(query: "", page: 0, pageSize: 100)
+        let participants = Array(directoryResult.users.prefix(2)).map(\.id)
 
         let activity = try await service.createActivityConversation(name: "Excursiones", participantIDs: participants, photoData: nil)
         #expect(activity.kind == .activity)
@@ -125,9 +125,9 @@ struct ChatServiceTests {
     func fetchAllActivitiesIncludesNonParticipantOnes() async throws {
         let creator = MockChatService()
         await creator.configureCurrentUser(id: UUID(), name: "Creador", photoData: nil)
-        let directory = await creator.searchDirectory(query: "")
+        let directoryResult = await creator.searchDirectory(query: "", page: 0, pageSize: 100)
         let activity = try await creator.createActivityConversation(
-            name: "Excursiones", participantIDs: [directory[0].id], photoData: nil
+            name: "Excursiones", participantIDs: [directoryResult.users[0].id], photoData: nil
         )
 
         let outsider = MockChatService()
@@ -148,9 +148,9 @@ struct ChatServiceTests {
         let service = MockChatService()
         let creatorID = UUID()
         await service.configureCurrentUser(id: creatorID, name: "Creador", photoData: nil)
-        let directory = await service.searchDirectory(query: "")
+        let directoryResult = await service.searchDirectory(query: "", page: 0, pageSize: 100)
         let activity = try await service.createActivityConversation(
-            name: "Excursiones", participantIDs: [directory[0].id], photoData: nil
+            name: "Excursiones", participantIDs: [directoryResult.users[0].id], photoData: nil
         )
 
         let newUserID = UUID()
@@ -170,8 +170,8 @@ struct ChatServiceTests {
         let service = MockChatService()
         let myID = UUID()
         await service.configureCurrentUser(id: myID, name: "Jo", photoData: nil)
-        let directory = await service.searchDirectory(query: "")
-        let participants = Array(directory.prefix(2)).map(\.id)
+        let directoryResult = await service.searchDirectory(query: "", page: 0, pageSize: 100)
+        let participants = Array(directoryResult.users.prefix(2)).map(\.id)
 
         let activity = try await service.createActivityConversation(name: "Excursiones", participantIDs: participants, photoData: nil)
         let event = try #require(await service.fetchEvents(conversationID: activity.id).first)
