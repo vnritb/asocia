@@ -169,5 +169,22 @@
   "settings.language.picker": "Elegir idioma",
   "settings.language.translating": "Traduciendo la aplicación…",
   "settings.language.errorTitle": "No se ha podido cambiar el idioma",
-  "settings.language.footer": "Español, catalán, gallego, euskera e inglés están siempre disponibles al instante. El resto de idiomas se traducen automáticamente con IA la primera vez que los eliges (después quedan guardados en el dispositivo)."
+  "settings.language.footer": "Español, catalán, gallego, euskera e inglés están siempre disponibles al instante. El resto de idiomas se traducen automáticamente con IA la primera vez que los eliges (después quedan guardados en el dispositivo).",
+  
+  "settings.environment.label": "Entorno",
+  
+  "settings.mock.section.header": "🧪 Simulación de Alta (Solo Modo Mock)",
+  "settings.mock.section.footer": "En modo mock puedes simular la aprobación/rechazo de altas que normalmente haría el backoffice.",
+  "settings.mock.status.label": "Estado actual",
+  "settings.mock.approve.button": "Confirmar Alta",
+  "settings.mock.reject.button": "Rechazar Alta",
+  "settings.mock.status.active": "Usuario ya confirmado",
+  "settings.mock.status.rejected": "Alta rechazada",
+  "settings.mock.alert.title": "Alta Confirmada",
+  "settings.mock.alert.message": "El alta ha sido confirmada. El usuario ahora tiene estado 'active' y acceso completo a la aplicación.",
+  "settings.mock.rejection.reason": "Rechazado desde el simulador de altas en modo mock",
+  "settings.mock.status.notMember": "Sin solicitud",
+  "settings.mock.status.pending": "⏳ Pendiente de aprobación",
+  "settings.mock.status.activeValue": "✅ Activo",
+  "settings.mock.status.rejectedValue": "❌ Rechazado"
 }

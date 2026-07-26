@@ -4,6 +4,9 @@ import Observation
 /// Gestor de localización que proporciona textos estáticos en 5 idiomas:
 /// español, catalán, gallego, euskera e inglés.
 /// Permite cambiar el idioma de la app en tiempo de ejecución sin necesidad de reiniciar.
+/// 
+/// Por defecto, la app siempre inicia en español, independientemente del idioma del sistema.
+/// El usuario puede cambiar el idioma manualmente desde Ajustes, y esa preferencia se guardará.
 @Observable
 @MainActor
 class LocalizationManager {
@@ -29,16 +32,19 @@ class LocalizationManager {
     init() {
         // Primero inicializar currentLanguageCode
         if let savedLanguage = UserDefaults.standard.string(forKey: "AppLanguage") {
+            // Si el usuario ya eligió un idioma manualmente, usarlo
             self.currentLanguageCode = savedLanguage
         } else {
-            // Detectar idioma del sistema
-            let systemLanguage = Locale.current.language.languageCode?.identifier ?? "es"
-            // Verificar que el idioma del sistema sea uno de los soportados
-            self.currentLanguageCode = supportedLanguages.contains(systemLanguage) ? systemLanguage : "es"
+            // Por defecto, siempre usar español
+            self.currentLanguageCode = "es"
         }
         
         // Ahora cargar las traducciones después de que todas las propiedades estén inicializadas
         loadTranslations()
+        
+        #if DEBUG
+        print("🌍 Idioma inicializado: \(currentLanguageCode)")
+        #endif
     }
     
     // MARK: - Private Methods

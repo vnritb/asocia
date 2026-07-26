@@ -82,9 +82,18 @@ actor APIClient: MembershipAPIClient {
     /// Envia el formulari d'alta (sense pagament: l'alta queda `pendingApproval`
     /// fins que l'equip gestor la confirma manualment des del backoffice).
     func submitMembershipApplication(_ dto: MemberDTO) async throws -> MembershipApplicationResponse {
+        #if DEBUG
+        print("📡 [API] submitMembershipApplication - \(dto.firstName) \(dto.firstSurname)")
+        #endif
+        
         let response: MembershipApplicationResponse = try await post("/v1/members/apply", body: dto, authenticated: false)
         authToken = response.authToken
         KeychainStore.saveToken(response.authToken)
+        
+        #if DEBUG
+        print("   ✅ Application submitted - Token saved")
+        #endif
+        
         return response
     }
 
@@ -93,12 +102,32 @@ actor APIClient: MembershipAPIClient {
     /// Descarrega l'estat més recent del soci (usat per `SyncEngine` tant a
     /// l'arrencada com en sincronitzacions periòdiques).
     func fetchCurrentMember() async throws -> MemberDTO {
-        try await get("/v1/members/me")
+        #if DEBUG
+        print("📡 [API] fetchCurrentMember")
+        #endif
+        
+        let member: MemberDTO = try await get("/v1/members/me")
+        
+        #if DEBUG
+        print("   ✅ Member fetched - Status: \(member.membershipStatus)")
+        #endif
+        
+        return member
     }
 
     /// Puja canvis locals (p.ex. telèfon o adreça editats sense connexió).
     func updateMember(_ dto: MemberDTO) async throws -> MemberDTO {
-        try await patch("/v1/members/me", body: dto)
+        #if DEBUG
+        print("📡 [API] updateMember - \(dto.firstName) \(dto.firstSurname)")
+        #endif
+        
+        let updated: MemberDTO = try await patch("/v1/members/me", body: dto)
+        
+        #if DEBUG
+        print("   ✅ Member updated")
+        #endif
+        
+        return updated
     }
 
     // MARK: - HTTP helpers
@@ -122,12 +151,26 @@ actor APIClient: MembershipAPIClient {
     private func send<Body: Encodable, Response: Decodable>(
         path: String, method: String, body: Body?, authenticated: Bool = true
     ) async throws -> Response {
+        
+        #if DEBUG
+        let fullURL = baseURL.appendingPathComponent(path).absoluteString
+        print("   🌐 [\(method)] \(fullURL)")
+        if authenticated {
+            print("   🔐 Authenticated: \(authToken != nil ? "Yes" : "No")")
+        }
+        #endif
+        
         var request = URLRequest(url: baseURL.appendingPathComponent(path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         if authenticated {
-            guard let authToken else { throw APIClientError.notAuthenticated }
+            guard let authToken else { 
+                #if DEBUG
+                print("   ❌ No auth token available")
+                #endif
+                throw APIClientError.notAuthenticated 
+            }
             request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
         }
 
@@ -135,11 +178,28 @@ actor APIClient: MembershipAPIClient {
         encoder.dateEncodingStrategy = .iso8601
         if let body { request.httpBody = try encoder.encode(body) }
 
+        #if DEBUG
+        let startTime = Date()
+        #endif
+        
         let (data, response) = try await session.data(for: request)
 
+        #if DEBUG
+        let duration = Date().timeIntervalSince(startTime)
+        #endif
+
         guard let http = response as? HTTPURLResponse else {
+            #if DEBUG
+            print("   ❌ Invalid HTTP response")
+            #endif
             throw APIClientError.transport
         }
+        
+        #if DEBUG
+        let emoji = (200..<300).contains(http.statusCode) ? "✅" : "❌"
+        print("   \(emoji) Response: \(http.statusCode) (\(String(format: "%.0f", duration * 1000))ms)")
+        #endif
+        
         guard (200..<300).contains(http.statusCode) else {
             throw APIClientError.server(statusCode: http.statusCode)
         }

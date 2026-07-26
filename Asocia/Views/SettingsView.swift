@@ -20,7 +20,7 @@ struct SettingsView: View {
                 // Visible solo en builds Debug: ayuda a no confundir contra
                 // qué entorno se está probando (mock/local/staging/producción).
                 Section {
-                    LabeledContent("Entorno", value: appEnvironment.displayName)
+                    LabeledContent(loc.t("settings.environment.label"), value: appEnvironment.displayName)
                 }
                 
                 // Sección especial para modo MOCK: permite simular la aprobación
@@ -42,12 +42,12 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle(loc.t("settings.navTitle"))
-            .alert("Alta Confirmada", isPresented: $showConfirmationAlert) {
+            .alert(loc.t("settings.mock.alert.title"), isPresented: $showConfirmationAlert) {
                 Button(loc.t("common.ok")) {
                     showConfirmationAlert = false
                 }
             } message: {
-                Text("El alta ha sido confirmada. El usuario ahora tiene estado 'active' y acceso completo a la aplicación.")
+                Text(loc.t("settings.mock.alert.message"))
             }
         }
     }
@@ -56,7 +56,7 @@ struct SettingsView: View {
     private var mockMembershipApprovalSection: some View {
         if let currentMember = members.first {
             Section {
-                LabeledContent("Estado actual", value: membershipStatusText(currentMember.membershipStatus))
+                LabeledContent(loc.t("settings.mock.status.label"), value: membershipStatusText(currentMember.membershipStatus))
                 
                 if currentMember.membershipStatus == .pendingApproval {
                     Button {
@@ -65,7 +65,7 @@ struct SettingsView: View {
                         HStack {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
-                            Text("Confirmar Alta")
+                            Text(loc.t("settings.mock.approve.button"))
                         }
                     }
                     
@@ -74,20 +74,20 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "xmark.circle.fill")
-                            Text("Rechazar Alta")
+                            Text(loc.t("settings.mock.reject.button"))
                         }
                     }
                 } else if currentMember.membershipStatus == .active {
-                    Label("Usuario ya confirmado", systemImage: "checkmark.seal.fill")
+                    Label(loc.t("settings.mock.status.active"), systemImage: "checkmark.seal.fill")
                         .foregroundStyle(.green)
                 } else if currentMember.membershipStatus == .rejected {
-                    Label("Alta rechazada", systemImage: "xmark.seal.fill")
+                    Label(loc.t("settings.mock.status.rejected"), systemImage: "xmark.seal.fill")
                         .foregroundStyle(.red)
                 }
             } header: {
-                Text("🧪 Simulación de Alta (Solo Modo Mock)")
+                Text(loc.t("settings.mock.section.header"))
             } footer: {
-                Text("En modo mock puedes simular la aprobación/rechazo de altas que normalmente haría el backoffice.")
+                Text(loc.t("settings.mock.section.footer"))
             }
         }
     }
@@ -104,13 +104,13 @@ struct SettingsView: View {
     private func membershipStatusText(_ status: MembershipStatus) -> String {
         switch status {
         case .notMember:
-            return "Sin solicitud"
+            return loc.t("settings.mock.status.notMember")
         case .pendingApproval:
-            return "⏳ Pendiente de aprobación"
+            return loc.t("settings.mock.status.pending")
         case .active:
-            return "✅ Activo"
+            return loc.t("settings.mock.status.activeValue")
         case .rejected:
-            return "❌ Rechazado"
+            return loc.t("settings.mock.status.rejectedValue")
         }
     }
     
@@ -129,7 +129,7 @@ struct SettingsView: View {
     
     private func rejectMembership(for member: Member) {
         member.membershipStatus = .rejected
-        member.rejectionReason = "Rechazado desde el simulador de altas en modo mock"
+        member.rejectionReason = loc.t("settings.mock.rejection.reason")
         
         do {
             try modelContext.save()
