@@ -59,12 +59,23 @@ struct SignupView: View {
     @State private var errorMessage: String?
 
     private var isFormValid: Bool {
-        !firstName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !firstSurname.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !email.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !password.isEmpty &&
-        password == confirmPassword &&
-        password.count >= 6
+        let hasFirstName = !firstName.trimmingCharacters(in: .whitespaces).isEmpty
+        let hasFirstSurname = !firstSurname.trimmingCharacters(in: .whitespaces).isEmpty
+        let hasEmail = !email.trimmingCharacters(in: .whitespaces).isEmpty
+        let hasPassword = !password.isEmpty
+        let passwordsMatch = password == confirmPassword
+        let passwordLongEnough = password.count >= 6
+        
+        #if DEBUG
+        if !hasFirstName { print("❌ Falta nombre") }
+        if !hasFirstSurname { print("❌ Falta primer apellido") }
+        if !hasEmail { print("❌ Falta email") }
+        if !hasPassword { print("❌ Falta contraseña") }
+        if !passwordsMatch { print("❌ Las contraseñas no coinciden: '\(password)' vs '\(confirmPassword)'") }
+        if !passwordLongEnough { print("❌ Contraseña muy corta: \(password.count) caracteres (mínimo 6)") }
+        #endif
+        
+        return hasFirstName && hasFirstSurname && hasEmail && hasPassword && passwordsMatch && passwordLongEnough
     }
 
     var body: some View {
@@ -118,6 +129,21 @@ struct SignupView: View {
                     SecureField(loc.t("signup.field.confirmPassword"), text: $confirmPassword)
                         .textContentType(.newPassword)
                         .accessibilityIdentifier("signup_confirmPassword")
+                    
+                    // Indicadores de validación de contraseña
+                    if !password.isEmpty {
+                        ValidationRow(
+                            text: "Mínimo 6 caracteres",
+                            isValid: password.count >= 6
+                        )
+                    }
+                    
+                    if !password.isEmpty && !confirmPassword.isEmpty {
+                        ValidationRow(
+                            text: "Las contraseñas coinciden",
+                            isValid: password == confirmPassword
+                        )
+                    }
                     
                     TextField(loc.t("signup.field.email2"), text: $secondaryEmail)
                         .textContentType(.emailAddress)
@@ -208,6 +234,12 @@ struct SignupView: View {
                     }
                     .disabled(!isFormValid || isProcessing)
                     .accessibilityIdentifier("signup_submitButton")
+                } footer: {
+                    if !isFormValid && !isProcessing {
+                        Text("Completa los campos obligatorios: nombre, primer apellido, email y contraseña (mínimo 6 caracteres)")
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
                 }
             }
             .navigationTitle(loc.t("signup.navTitle"))
@@ -283,6 +315,23 @@ struct SignupView: View {
             onSuccess()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Validation Row
+private struct ValidationRow: View {
+    let text: String
+    let isValid: Bool
+    
+    var body: some View {
+        HStack {
+            Image(systemName: isValid ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .foregroundColor(isValid ? .green : .red)
+                .imageScale(.small)
+            Text(text)
+                .font(.caption)
+                .foregroundColor(isValid ? .secondary : .red)
         }
     }
 }

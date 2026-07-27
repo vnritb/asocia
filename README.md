@@ -8,7 +8,7 @@ el backoffice. Una vez confirmada, aparecen las pestañas de Chat y Ajustes,
 más una vista pública de todas las actividades de la asociación.
 
 Toda la documentación técnica y las decisiones de arquitectura están en
-[`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
+[`docs/ARQUITECTURA_INICIAL.md`](docs/ARQUITECTURA_INICIAL.md).
 
 ```
 Asocia/                    # proyecto Xcode (app iOS)

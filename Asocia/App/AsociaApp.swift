@@ -24,6 +24,10 @@ struct AsociaApp: App {
     init() {
         // Limpiar datos persistentes y usar contenedor en memoria si se ejecutan UI tests
         #if DEBUG
+        
+        let url = URL.applicationSupportDirectory.appending(path: "default.store")
+        try? FileManager.default.removeItem(at: url)
+        
         let isUITesting = CommandLine.arguments.contains("-UITEST_RESET_STATE")
         if isUITesting {
             print("🧪 UI Test mode: Usando contenedor en memoria y limpiando UserDefaults...")

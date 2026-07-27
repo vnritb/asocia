@@ -69,12 +69,15 @@ actor APIClient: MembershipAPIClient {
     /// staging/producción) en el punto de creación — ver `AsociaApp.swift`.
     private let baseURL: URL
     private let session: URLSession
-    private var authToken: String?
 
     init(baseURL: URL = AppEnvironment.current.apiBaseURL, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
-        self.authToken = KeychainStore.loadToken()
+    }
+    
+    /// Obtiene el token actual del Keychain (se recarga en cada petición)
+    private var authToken: String? {
+        KeychainStore.loadToken()
     }
 
     // MARK: - Alta de soci
@@ -87,7 +90,6 @@ actor APIClient: MembershipAPIClient {
         #endif
         
         let response: MembershipApplicationResponse = try await post("/v1/members/apply", body: dto, authenticated: false)
-        authToken = response.authToken
         KeychainStore.saveToken(response.authToken)
         
         #if DEBUG
@@ -152,11 +154,14 @@ actor APIClient: MembershipAPIClient {
         path: String, method: String, body: Body?, authenticated: Bool = true
     ) async throws -> Response {
         
+        // Cargar el token al inicio de la petición
+        let token = authToken
+        
         #if DEBUG
         let fullURL = baseURL.appendingPathComponent(path).absoluteString
         print("   🌐 [\(method)] \(fullURL)")
         if authenticated {
-            print("   🔐 Authenticated: \(authToken != nil ? "Yes" : "No")")
+            print("   🔐 Authenticated: \(token != nil ? "Yes (token presente)" : "No (sin token)")")
         }
         #endif
         
@@ -165,13 +170,13 @@ actor APIClient: MembershipAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         if authenticated {
-            guard let authToken else { 
+            guard let token else { 
                 #if DEBUG
-                print("   ❌ No auth token available")
+                print("   ❌ No auth token available in Keychain")
                 #endif
                 throw APIClientError.notAuthenticated 
             }
-            request.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
         let encoder = JSONEncoder()

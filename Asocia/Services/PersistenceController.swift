@@ -18,17 +18,32 @@ enum PersistenceController {
     }
 
     static let shared: ModelContainer = {
-        let schema = Schema([Member.self])
-
-        let configuration = ModelConfiguration(
-            schema: schema,
-            isStoredInMemoryOnly: isResettingForUITests,
-            cloudKitDatabase: .none // ver docs/ARQUITECTURA.md: no usamos CloudKit
-        )
-
         do {
-            return try ModelContainer(for: schema, configurations: [configuration])
+            let schema = Schema([Member.self])
+
+            let configuration = ModelConfiguration(
+                schema: schema,
+                isStoredInMemoryOnly: isResettingForUITests,
+                cloudKitDatabase: .none // ver docs/ARQUITECTURA.md: no usamos CloudKit
+            )
+
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            
+            #if DEBUG
+            print("✅ ModelContainer creado exitosamente")
+            #endif
+            
+            return container
         } catch {
+            #if DEBUG
+            print("❌ Error creando ModelContainer: \(error)")
+            print("   Tipo de error: \(type(of: error))")
+            if let nsError = error as NSError? {
+                print("   Domain: \(nsError.domain)")
+                print("   Code: \(nsError.code)")
+                print("   UserInfo: \(nsError.userInfo)")
+            }
+            #endif
             fatalError("No se pudo crear el ModelContainer de SwiftData: \(error)")
         }
     }()
