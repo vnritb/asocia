@@ -5,7 +5,7 @@ import SwiftData
 ///
 /// Orden de operaciones (ver docs/ARQUITECTURA.md):
 /// 1. Validar el formulario: nombre + primer apellido, email y contraseña.
-/// 2. Enviar la solicitud al backend (`authService.register`),
+/// 2. Enviar la solicitud al backend (`apiClient.submitMembershipApplication`),
 ///    que crea el registro en estado `pendingApproval` y devuelve un token de sesión.
 /// 3. Guardar el `Member` resultante en SwiftData (local, offline-first) y
 ///    cerrar el formulario; `RootView` pasa automáticamente a mostrar la
@@ -14,7 +14,7 @@ import SwiftData
 ///    backoffice; al confirmarla, el indicador provisional desaparece y se
 ///    habilita el acceso al Chat.
 struct SignupView: View {
-    @Environment(\.authService) private var authService
+    @Environment(\.apiClient) private var apiClient
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(LocalizationManager.self) private var loc
@@ -255,24 +255,65 @@ struct SignupView: View {
     }
 
     private func submit() async {
-        isProcessing = true
         errorMessage = nil
-        defer { isProcessing = false }
+        isProcessing = true
+        
+        #if DEBUG
+        print("🚀 [SIGNUP] Iniciando envío de aplicación...")
+        #endif
 
         do {
             let localID = UUID()
             
-            // Registrar usuario en el backend de autenticación
-            let response = try await authService.register(
-                id: localID,
-                email: email,
-                password: password,
-                firstName: firstName,
-                firstSurname: firstSurname
-            )
-
-            // Crear member local con todos los datos del formulario
+            // Crear DTO con todos los datos del formulario
             let passwordHash = AuthService.hashPassword(password)
+            let dto = MemberDTO(
+                id: localID,
+                firstName: firstName,
+                firstSurname: firstSurname,
+                secondSurname: secondSurname,
+                email: email,
+                secondaryEmail: secondaryEmail,
+                mobilePhone: mobilePhone,
+                landlinePhone: landlinePhone,
+                address: address,
+                postalCode: postalCode,
+                city: city,
+                province: province,
+                birthDate: hasBirthDate ? birthDate : nil,
+                entryYear: entryYear,
+                exitYear: exitYear,
+                promotion: promotion,
+                profession: profession,
+                workplace: workplace,
+                iban: iban,
+                facebookUsername: facebookUsername,
+                instagramUsername: instagramUsername,
+                xUsername: xUsername,
+                tiktokUsername: tiktokUsername,
+                photoBase64: photoData?.base64EncodedString(),
+                isSearchable: isSearchable,
+                associationID: nil,
+                isVisibleToOtherAssociations: false,
+                membershipStatus: .pendingApproval,
+                joinDate: Date(),
+                rejectionReason: nil,
+                updatedAt: Date()
+            )
+            
+            #if DEBUG
+            print("📤 [SIGNUP] Enviando aplicación al servidor...")
+            #endif
+            
+            // Enviar aplicación al backend (endpoint correcto: /v1/members/apply)
+            let response = try await apiClient.submitMembershipApplication(dto)
+            
+            #if DEBUG
+            print("✅ [SIGNUP] Aplicación enviada - Token recibido y guardado en Keychain")
+            print("   Member status: \(response.member.membershipStatus)")
+            #endif
+
+            // Crear member local con todos los datos
             let member = Member(
                 id: localID,
                 firstName: firstName,
@@ -311,9 +352,28 @@ struct SignupView: View {
             modelContext.insert(member)
             try modelContext.save()
 
+            #if DEBUG
+            print("💾 [SIGNUP] Member guardado localmente en SwiftData")
+            #endif
+            
+            // Importante: resetear isProcessing ANTES de dismiss
+            isProcessing = false
+
             dismiss()
             onSuccess()
+            
         } catch {
+            // Asegurar que isProcessing se resetea incluso si hay error
+            isProcessing = false
+            
+            #if DEBUG
+            print("❌ [SIGNUP] Error en submit: \(error)")
+            if let decodingError = error as? DecodingError {
+                print("   🔴 Es un error de decodificación")
+            }
+            #endif
+            
+            // Mostrar error en la UI
             errorMessage = error.localizedDescription
         }
     }
@@ -339,6 +399,6 @@ private struct ValidationRow: View {
 #Preview {
     SignupView(onSuccess: {})
         .environment(LocalizationManager())
-        .environment(\.authService, AuthService())
+        .environment(\.apiClient, MockMembershipAPIClient.shared)
         .modelContainer(PersistenceController.inMemoryContainer())
 }

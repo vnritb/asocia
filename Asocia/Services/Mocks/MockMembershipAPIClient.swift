@@ -10,6 +10,10 @@ import Foundation
 /// socio pasa solo de `pendingApproval` a `active` (el próximo `syncNow()`
 /// de `SyncEngine`, que ya se dispara al arrancar la app, lo recoge).
 actor MockMembershipAPIClient: MembershipAPIClient {
+    
+    /// Instancia compartida para usar en AsociaApp y EnvironmentKeys
+    static let shared = MockMembershipAPIClient()
+    
     private var member: MemberDTO?
     private let approvalDelay: Duration
 

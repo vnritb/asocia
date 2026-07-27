@@ -6,6 +6,9 @@ import Foundation
 /// funcional completo para desarrollo de UI sin servidor.
 actor MockMembershipAPIClient: MembershipAPIClient {
     
+    /// Instancia compartida para usar como valor por defecto en EnvironmentKey
+    static let shared = MockMembershipAPIClient()
+    
     /// Simula el envío de una solicitud de membresía
     func submitMembershipApplication(_ dto: MemberDTO) async throws -> MembershipApplicationResponse {
         #if DEBUG

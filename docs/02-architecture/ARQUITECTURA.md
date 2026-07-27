@@ -204,3 +204,15 @@ Con varias asociaciones conviviendo en el mismo backend:
 - Decidir dónde se suben las fotografías (bucket de objetos) y migrar de `photoBase64` a `photoUrl`.
 - Construir el roadmap de la sección 16 (administradores, CSV, multi-asociación).
 - Iniciar la app Android sobre el mismo backend.
+
+## 18. Autenticación: estado actual y mejoras futuras
+
+Hoy la autenticación es deliberadamente simple: `membership-service` genera un `auth_token` aleatorio (`crypto.randomBytes(32)`) al confirmar el alta (`POST /v1/members/apply`) y lo guarda en la columna `auth_token` de `membership.members`; el resto de peticiones lo mandan como `Bearer <token>` y se resuelven contra esa misma tabla (`authenticate` en `backend/services/membership-service/src/index.ts`). No hay JWT, ni contraseñas, ni bcrypt: no hacen falta porque el alta no requiere contraseña, solo los datos del formulario.
+
+Mejoras pendientes, heredadas de un diseño anterior con contraseña y todavía razonables para una futura versión con login por contraseña o multi-dispositivo:
+
+1. **Expiración y refresco de tokens** — hoy `auth_token` no caduca; convendría una fecha de expiración y un endpoint de renovación antes de abrir la app a más socios.
+2. **Sesiones múltiples** — tabla de tokens activos por socio (en vez de una única columna), para poder cerrar sesión en un dispositivo concreto.
+3. **Auditoría de accesos** — log de altas de sesión y aviso al socio si se detecta un dispositivo nuevo.
+4. **Recuperación de acceso** — si en el futuro se añade contraseña, un flujo de recuperación por email/SMS con token de un solo uso.
+5. **OAuth / Sign in with Apple** — alternativa u complemento al alta actual, especialmente relevante de cara a la App Store.

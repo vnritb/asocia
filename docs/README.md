@@ -9,11 +9,11 @@ Bienvenido a la documentación completa del proyecto Asocia.
 ### [01 - Getting Started](./01-getting-started/)
 Guías de inicio rápido y preguntas frecuentes
 - **[FAQ](./01-getting-started/FAQ.md)** - Preguntas frecuentes sobre autenticación y el sistema
+- **[Local Mode Guide](./LOCAL_MODE_GUIDE.md)** - 🔧 Ejecutar la app en modo local con backend real
 
 ### [02 - Arquitectura](./02-architecture/)
 Documentación de arquitectura del proyecto
-- **[ARCHITECTURE (EN)](./02-architecture/ARCHITECTURE.md)** - Architecture overview (English)
-- **[ARQUITECTURA (ES)](./02-architecture/ARQUITECTURA.md)** - Visión general de arquitectura (Español)
+- **[ARQUITECTURA](./02-architecture/ARQUITECTURA.md)** - Visión general de arquitectura y decisiones de diseño
 
 ### [03 - Autenticación](./03-authentication/)
 Sistema de login, registro y gestión de tokens
@@ -80,8 +80,9 @@ npm install
 ### Para Nuevos Desarrolladores
 1. Leer [FAQ](./01-getting-started/FAQ.md)
 2. Revisar [ARQUITECTURA](./02-architecture/ARQUITECTURA.md)
-3. Configurar [Autenticación](./03-authentication/AUTH_USAGE_GUIDE.md)
-4. Cargar [Datos de Prueba](./07-development/SAMPLE_DATA_GUIDE.md)
+3. **Configurar [Modo Local](./LOCAL_MODE_GUIDE.md)** 🔧 ← ¡Empieza aquí!
+4. Configurar [Autenticación](./03-authentication/AUTH_USAGE_GUIDE.md)
+5. Cargar [Datos de Prueba](./07-development/SAMPLE_DATA_GUIDE.md)
 
 ### Para Implementar Características
 1. **Chat**: Ver [Chat Users Guide](./05-chat/CHAT_USERS_GUIDE.md)

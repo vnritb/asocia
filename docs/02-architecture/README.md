@@ -6,25 +6,15 @@ Documentación de la arquitectura general del proyecto.
 
 ## 📄 Documentos en esta Sección
 
-### [ARCHITECTURE.md](./ARCHITECTURE.md) 🇬🇧
-**Architecture Overview (English)**
-
-Comprehensive architecture documentation covering:
-- System architecture
-- Data flow
-- Service structure
-- Design patterns
-- Technical decisions
-
 ### [ARQUITECTURA.md](./ARQUITECTURA.md) 🇪🇸
-**Visión General de Arquitectura (Español)**
 
-Documentación completa de arquitectura que cubre:
-- Arquitectura del sistema
-- Flujo de datos
-- Estructura de servicios
-- Patrones de diseño
-- Decisiones técnicas
+Documento único de arquitectura del proyecto (sustituye a los antiguos `ARCHITECTURE.md` en inglés y `ARQUITECTURA.md`, ya unificados). Cubre:
+- Arquitectura de la app iOS y del backend de microservicios
+- Flujo de datos (alta, login, sincronización)
+- Búsqueda de socios por similitud, chat y actividades
+- Entornos (mock/local/staging/producción) y CI/CD
+- Estado actual de la autenticación y mejoras futuras
+- Roadmap (administradores, alta masiva por CSV, multi-asociación)
 
 ---
 

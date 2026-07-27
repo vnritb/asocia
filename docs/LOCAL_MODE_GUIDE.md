@@ -36,7 +36,6 @@ Si no existe, necesitas crearlo o el backend no está configurado aún.
 cp services/api-gateway/.env.example services/api-gateway/.env
 cp services/membership-service/.env.example services/membership-service/.env
 cp services/chat-service/.env.example services/chat-service/.env
-cp services/translation-service/.env.example services/translation-service/.env
 
 # O todo de una vez:
 for service in services/*/; do
@@ -57,7 +56,6 @@ PORT=4000
 NODE_ENV=development
 MEMBERSHIP_SERVICE_URL=http://membership-service:3001
 CHAT_SERVICE_URL=http://chat-service:3002
-TRANSLATION_SERVICE_URL=http://translation-service:3003
 
 # En services/membership-service/.env
 PORT=3001
@@ -69,11 +67,6 @@ JWT_SECRET=your-super-secret-key-change-in-production
 PORT=3002
 NODE_ENV=development
 DATABASE_URL=postgresql://postgres:password@postgres:5432/asocia_chat
-
-# En services/translation-service/.env
-PORT=3003
-NODE_ENV=development
-ANTHROPIC_API_KEY=tu-api-key-aqui  # Opcional, solo si quieres traducción real
 ```
 
 ---
@@ -100,7 +93,6 @@ docker compose up --build
 ✅ api-gateway      Started (Puerto 4000)
 ✅ membership-service  Started (Puerto 3001)
 ✅ chat-service     Started (Puerto 3002)
-✅ translation-service Started (Puerto 3003)
 ```
 
 ### 2.3 Verificar que funciona

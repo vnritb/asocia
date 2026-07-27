@@ -6,11 +6,8 @@ import Foundation
 /// (igual que l'`APIClient` real), la qual cosa evita condicions de cursa
 /// entre el test i el motor de sincronització.
 ///
-/// Es diu `SyncTest...` (i no `MockMembershipAPIClient`, a seques) per no
-/// xocar amb `Asocia/Services/Mocks/MockMembershipAPIClient.swift`, que és
-/// la implementació mock que fa servir la pròpia app en `AppEnvironment.mock`
-/// (objectiu diferent: demostrar el flux complet a la UI, no controlar
-/// resultats exactes per a asserts de test).
+/// ⚠️ Este archivo es SOLO para tests. El mock de la app está en
+/// `MockMembershipAPIClientForApp.swift`.
 actor SyncTestMembershipAPIClient: MembershipAPIClient {
 
     private(set) var updateCalls: [MemberDTO] = []
@@ -50,3 +47,4 @@ actor SyncTestMembershipAPIClient: MembershipAPIClient {
         return updateResultProvider?(dto) ?? dto
     }
 }
+

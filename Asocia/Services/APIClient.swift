@@ -39,7 +39,146 @@ struct MemberDTO: Codable, Sendable {
     var joinDate: Date?
     var rejectionReason: String?
     var updatedAt: Date
+    
+    // MARK: - Custom Decoding
+    
+    /// Inicializador normal para crear DTOs desde la app
+    init(
+        id: UUID,
+        firstName: String,
+        firstSurname: String,
+        secondSurname: String,
+        email: String,
+        secondaryEmail: String,
+        mobilePhone: String,
+        landlinePhone: String,
+        address: String,
+        postalCode: String,
+        city: String,
+        province: String,
+        birthDate: Date?,
+        entryYear: String,
+        exitYear: String,
+        promotion: String,
+        profession: String,
+        workplace: String,
+        iban: String,
+        facebookUsername: String,
+        instagramUsername: String,
+        xUsername: String,
+        tiktokUsername: String,
+        photoBase64: String?,
+        isSearchable: Bool,
+        associationID: String?,
+        isVisibleToOtherAssociations: Bool,
+        membershipStatus: MembershipStatus,
+        joinDate: Date?,
+        rejectionReason: String?,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.firstName = firstName
+        self.firstSurname = firstSurname
+        self.secondSurname = secondSurname
+        self.email = email
+        self.secondaryEmail = secondaryEmail
+        self.mobilePhone = mobilePhone
+        self.landlinePhone = landlinePhone
+        self.address = address
+        self.postalCode = postalCode
+        self.city = city
+        self.province = province
+        self.birthDate = birthDate
+        self.entryYear = entryYear
+        self.exitYear = exitYear
+        self.promotion = promotion
+        self.profession = profession
+        self.workplace = workplace
+        self.iban = iban
+        self.facebookUsername = facebookUsername
+        self.instagramUsername = instagramUsername
+        self.xUsername = xUsername
+        self.tiktokUsername = tiktokUsername
+        self.photoBase64 = photoBase64
+        self.isSearchable = isSearchable
+        self.associationID = associationID
+        self.isVisibleToOtherAssociations = isVisibleToOtherAssociations
+        self.membershipStatus = membershipStatus
+        self.joinDate = joinDate
+        self.rejectionReason = rejectionReason
+        self.updatedAt = updatedAt
+    }
+    
+    /// Decodificación personalizada para manejar backends que devuelven
+    /// números (0/1) en lugar de booleanos para isSearchable e isVisibleToOtherAssociations
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(UUID.self, forKey: .id)
+        firstName = try container.decode(String.self, forKey: .firstName)
+        firstSurname = try container.decode(String.self, forKey: .firstSurname)
+        secondSurname = try container.decode(String.self, forKey: .secondSurname)
+        email = try container.decode(String.self, forKey: .email)
+        secondaryEmail = try container.decode(String.self, forKey: .secondaryEmail)
+        mobilePhone = try container.decode(String.self, forKey: .mobilePhone)
+        landlinePhone = try container.decode(String.self, forKey: .landlinePhone)
+        address = try container.decode(String.self, forKey: .address)
+        postalCode = try container.decode(String.self, forKey: .postalCode)
+        city = try container.decode(String.self, forKey: .city)
+        province = try container.decode(String.self, forKey: .province)
+        birthDate = try container.decodeIfPresent(Date.self, forKey: .birthDate)
+        entryYear = try container.decode(String.self, forKey: .entryYear)
+        exitYear = try container.decode(String.self, forKey: .exitYear)
+        promotion = try container.decode(String.self, forKey: .promotion)
+        profession = try container.decode(String.self, forKey: .profession)
+        workplace = try container.decode(String.self, forKey: .workplace)
+        iban = try container.decode(String.self, forKey: .iban)
+        facebookUsername = try container.decode(String.self, forKey: .facebookUsername)
+        instagramUsername = try container.decode(String.self, forKey: .instagramUsername)
+        xUsername = try container.decode(String.self, forKey: .xUsername)
+        tiktokUsername = try container.decode(String.self, forKey: .tiktokUsername)
+        photoBase64 = try container.decodeIfPresent(String.self, forKey: .photoBase64)
+        
+        // Decodificar isSearchable: puede ser Bool o Int (0/1)
+        if let boolValue = try? container.decode(Bool.self, forKey: .isSearchable) {
+            isSearchable = boolValue
+        } else if let intValue = try? container.decode(Int.self, forKey: .isSearchable) {
+            isSearchable = intValue != 0
+        } else {
+            isSearchable = false // Valor por defecto
+        }
+        
+        associationID = try container.decodeIfPresent(String.self, forKey: .associationID)
+        
+        // Decodificar isVisibleToOtherAssociations: puede ser Bool o Int (0/1)
+        if let boolValue = try? container.decode(Bool.self, forKey: .isVisibleToOtherAssociations) {
+            isVisibleToOtherAssociations = boolValue
+        } else if let intValue = try? container.decode(Int.self, forKey: .isVisibleToOtherAssociations) {
+            isVisibleToOtherAssociations = intValue != 0
+        } else {
+            isVisibleToOtherAssociations = false // Valor por defecto
+        }
+        
+        membershipStatus = try container.decode(MembershipStatus.self, forKey: .membershipStatus)
+        joinDate = try container.decodeIfPresent(Date.self, forKey: .joinDate)
+        rejectionReason = try container.decodeIfPresent(String.self, forKey: .rejectionReason)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
+    
+    // MARK: - CodingKeys
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, firstName, firstSurname, secondSurname
+        case email, secondaryEmail, mobilePhone, landlinePhone
+        case address, postalCode, city, province
+        case birthDate, entryYear, exitYear, promotion
+        case profession, workplace, iban
+        case facebookUsername, instagramUsername, xUsername, tiktokUsername
+        case photoBase64, isSearchable, associationID, isVisibleToOtherAssociations
+        case membershipStatus, joinDate, rejectionReason, updatedAt
+    }
 }
+
 
 /// Resposta en enviar la sol·licitud d'alta.
 struct MembershipApplicationResponse: Codable, Sendable {
@@ -206,12 +345,51 @@ actor APIClient: MembershipAPIClient {
         #endif
         
         guard (200..<300).contains(http.statusCode) else {
+            #if DEBUG
+            print("   ❌ Error del servidor - Status: \(http.statusCode)")
+            if let errorBody = String(data: data, encoding: .utf8) {
+                print("   📄 Respuesta del servidor: \(errorBody)")
+            }
+            #endif
             throw APIClientError.server(statusCode: http.statusCode)
         }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(Response.self, from: data)
+        
+        #if DEBUG
+        // Imprimir el JSON crudo para debugging
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("   📥 JSON recibido: \(jsonString)")
+        }
+        #endif
+        
+        do {
+            return try decoder.decode(Response.self, from: data)
+        } catch {
+            #if DEBUG
+            print("   ❌ Error decodificando JSON: \(error)")
+            if let decodingError = error as? DecodingError {
+                switch decodingError {
+                case .typeMismatch(let type, let context):
+                    print("   🔴 Type mismatch - Expected: \(type)")
+                    print("   🔴 Coding path: \(context.codingPath.map { $0.stringValue }.joined(separator: " → "))")
+                    print("   🔴 Description: \(context.debugDescription)")
+                case .keyNotFound(let key, let context):
+                    print("   🔴 Key '\(key.stringValue)' not found")
+                    print("   🔴 Context: \(context.debugDescription)")
+                case .valueNotFound(let type, let context):
+                    print("   🔴 Value of type \(type) not found")
+                    print("   🔴 Context: \(context.debugDescription)")
+                case .dataCorrupted(let context):
+                    print("   🔴 Data corrupted: \(context.debugDescription)")
+                @unknown default:
+                    print("   🔴 Unknown decoding error")
+                }
+            }
+            #endif
+            throw error
+        }
     }
 }
 

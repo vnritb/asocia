@@ -55,7 +55,7 @@ struct AsociaApp: App {
         let chatService: ChatServicing
 
         if env.usesMockServices {
-            apiClient = MockMembershipAPIClient()
+            apiClient = MockMembershipAPIClient.shared
             chatService = MockChatService()
         } else {
             apiClient = APIClient(baseURL: env.apiBaseURL)
@@ -67,7 +67,13 @@ struct AsociaApp: App {
         self.authService = AuthService(baseURL: env.apiBaseURL)
 
         #if DEBUG
-        print("Asocia arrancada en entorno: \(env.displayName) (\(env.rawValue))")
+        print("🌍 Asocia arrancada en entorno: \(env.displayName) (\(env.rawValue))")
+        print("🌐 API Base URL: \(env.apiBaseURL.absoluteString)")
+        if env.usesMockServices {
+            print("✅ Usando servicios MOCK (sin red)")
+        } else {
+            print("⚠️  Usando servicios REALES - El backend debe estar corriendo")
+        }
         #endif
     }
 
@@ -144,7 +150,7 @@ private struct SyncEngineKey: EnvironmentKey {
 }
 
 private struct APIClientKey: EnvironmentKey {
-    static let defaultValue: MembershipAPIClient = MockMembershipAPIClient()
+    static let defaultValue: MembershipAPIClient = MockMembershipAPIClient.shared
 }
 
 private struct ChatServiceKey: EnvironmentKey {
