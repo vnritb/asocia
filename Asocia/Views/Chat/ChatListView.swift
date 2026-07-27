@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Lista de conversaciones del socio (individuales, de grupo y de
 /// actividad). Solo se muestra cuando `member.membershipStatus.hasChatAccess`
@@ -198,6 +199,15 @@ private struct ConversationRow: View {
 }
 
 #Preview {
-    ChatListView(member: Member(firstName: "Ana", firstSurname: "García", membershipStatus: .active))
+    let container = PersistenceController.previewContainer(withSampleData: true)
+    let context = container.mainContext
+    
+    // Obtener el primer miembro de los datos de prueba
+    let descriptor = FetchDescriptor<Member>()
+    let members = (try? context.fetch(descriptor)) ?? []
+    let member = members.first ?? Member(firstName: "Ana", firstSurname: "García", membershipStatus: .active)
+    
+    return ChatListView(member: member)
         .environment(LocalizationManager())
+        .modelContainer(container)
 }

@@ -58,7 +58,12 @@ struct AsociaApp: App {
             apiClient = MockMembershipAPIClient.shared
             chatService = MockChatService()
         } else {
-            apiClient = APIClient(baseURL: env.apiBaseURL)
+            // En modo Local, usar wrapper con auto-validación
+            if env == .local {
+                apiClient = LocalAutoValidationAPIClient(baseURL: env.apiBaseURL)
+            } else {
+                apiClient = APIClient(baseURL: env.apiBaseURL)
+            }
             chatService = ChatAPIClient(baseURL: env.apiBaseURL)
         }
 

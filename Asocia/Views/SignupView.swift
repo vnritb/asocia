@@ -368,7 +368,7 @@ struct SignupView: View {
             
             #if DEBUG
             print("❌ [SIGNUP] Error en submit: \(error)")
-            if let decodingError = error as? DecodingError {
+            if error is DecodingError {
                 print("   🔴 Es un error de decodificación")
             }
             #endif
@@ -400,5 +400,5 @@ private struct ValidationRow: View {
     SignupView(onSuccess: {})
         .environment(LocalizationManager())
         .environment(\.apiClient, MockMembershipAPIClient.shared)
-        .modelContainer(PersistenceController.inMemoryContainer())
+        .modelContainer(PersistenceController.previewContainer(withSampleData: true))
 }
