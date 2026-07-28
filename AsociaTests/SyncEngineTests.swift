@@ -22,9 +22,9 @@ final class MockMembershipAPIClientForTests: MembershipAPIClient {
             throw error
         }
         updateCalls.append(dto)
-        return MembershipApplicationResponse(authToken: "mock-token", member: dto)
+        return MembershipApplicationResponse(member: dto)
     }
-    
+
     func fetchCurrentMember() async throws -> MemberDTO {
         switch fetchResult {
         case .success(let dto):
@@ -33,7 +33,16 @@ final class MockMembershipAPIClientForTests: MembershipAPIClient {
             throw error
         }
     }
-    
+
+    func checkStatus(id: UUID) async throws -> MemberStatusResponse {
+        switch fetchResult {
+        case .success(let dto) where dto.id == id && dto.membershipStatus == .active:
+            return MemberStatusResponse(membershipStatus: .active, rejectionReason: nil, authToken: "mock-token", member: dto)
+        default:
+            return MemberStatusResponse(membershipStatus: .pendingApproval, rejectionReason: nil, authToken: nil, member: nil)
+        }
+    }
+
     func updateMember(_ dto: MemberDTO) async throws -> MemberDTO {
         if let error = updateError {
             throw error

@@ -30,8 +30,15 @@ CREATE TABLE IF NOT EXISTS members (
   join_date DATETIME NULL,
   rejection_reason TEXT NULL,
   auth_token VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL DEFAULT '',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- CREATE TABLE IF NOT EXISTS no toca una tabla ya existente: esta línea
+-- añade password_hash a los despliegues que se crearon antes de que
+-- existiera el login por email/contraseña (ver POST /v1/members/login).
+ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255) NOT NULL DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_members_auth_token ON members (auth_token);
 CREATE INDEX IF NOT EXISTS idx_members_status ON members (membership_status);
+CREATE INDEX IF NOT EXISTS idx_members_email ON members (email);

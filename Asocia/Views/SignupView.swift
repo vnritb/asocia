@@ -18,8 +18,15 @@ struct SignupView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(LocalizationManager.self) private var loc
-    
+
     let onSuccess: () -> Void
+
+    /// En cuanto `/apply` responde con éxito, esto pasa a tener valor y la
+    /// vista deja de mostrar el formulario para mostrar el aviso de
+    /// pendiente — nos quedamos en esta misma pantalla en vez de volver a
+    /// Login, tal y como pide el flujo: mientras no esté validado, el único
+    /// sitio al que se tiene acceso es este formulario/aviso.
+    @State private var submittedMemberID: UUID?
 
     @State private var photoData: Data?
 
@@ -67,12 +74,12 @@ struct SignupView: View {
         let passwordLongEnough = password.count >= 6
         
         #if DEBUG
-        if !hasFirstName { print("❌ Falta nombre") }
-        if !hasFirstSurname { print("❌ Falta primer apellido") }
-        if !hasEmail { print("❌ Falta email") }
-        if !hasPassword { print("❌ Falta contraseña") }
-        if !passwordsMatch { print("❌ Las contraseñas no coinciden: '\(password)' vs '\(confirmPassword)'") }
-        if !passwordLongEnough { print("❌ Contraseña muy corta: \(password.count) caracteres (mínimo 6)") }
+        if !hasFirstName { print("❌ Falta nombre ⚠️ Obligatorio") }
+        if !hasFirstSurname { print("❌ Falta primer apellido ⚠️ Obligatorio") }
+        if !hasEmail { print("❌ Falta email ⚠️ Obligatorio") }
+        if !hasPassword { print("❌ Falta contraseña ⚠️ Obligatorio") }
+        if !passwordsMatch { print("❌ Las contraseñas no coinciden ⚠️ Obligatorio: '\(password)' vs '\(confirmPassword)'") }
+        if !passwordLongEnough { print("❌ Contraseña muy corta: \(password.count) caracteres (mínimo 6) ⚠️ Obligatorio") }
         #endif
         
         return hasFirstName && hasFirstSurname && hasEmail && hasPassword && passwordsMatch && passwordLongEnough
@@ -80,7 +87,69 @@ struct SignupView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            if let submittedMemberID {
+                pendingApprovalView(memberID: submittedMemberID)
+                    .navigationTitle(loc.t("signup.navTitle"))
+                    .navigationBarTitleDisplayMode(.inline)
+            } else {
+                signupForm
+            }
+        }
+    }
+
+    /// Se muestra en esta misma pantalla justo después de enviar la
+    /// solicitud, en vez de volver a Login. `.task(id:)` comprueba
+    /// `GET /v1/members/:id/status` (sin token) y, en cuanto el backoffice
+    /// confirma el alta, guarda el authToken y entra directamente — sin
+    /// que el usuario tenga que hacer nada más.
+    @ViewBuilder
+    private func pendingApprovalView(memberID: UUID) -> some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Image(systemName: "clock.badge.checkmark")
+                .font(.system(size: 60))
+                .foregroundStyle(.orange)
+            Text(loc.t("signup.pending.title"))
+                .font(.title2.bold())
+            Text(loc.t("signup.pending.message"))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 32)
+            Spacer()
+            Button(loc.t("signup.pending.close")) {
+                dismiss()
+                onSuccess()
+            }
+            .padding(.bottom, 24)
+        }
+        .task(id: memberID) {
+            await pollPendingStatus(memberID: memberID)
+        }
+    }
+
+    /// Reintenta `checkStatus` cada pocos segundos mientras esta pantalla
+    /// esté visible ("sincronizar"). Se cancela solo al desaparecer la
+    /// vista (dismiss), no hace falta gestionarlo a mano.
+    private func pollPendingStatus(memberID: UUID) async {
+        while !Task.isCancelled {
+            if let status = try? await apiClient.checkStatus(id: memberID),
+               status.membershipStatus == .active,
+               let token = status.authToken,
+               let memberDTO = status.member {
+                KeychainStore.saveToken(token)
+                modelContext.insert(memberDTO.toMember())
+                try? modelContext.save()
+                PendingSignupStore.clear()
+                dismiss()
+                onSuccess()
+                return
+            }
+            try? await Task.sleep(for: .seconds(5))
+        }
+    }
+
+    private var signupForm: some View {
+        Form {
                 Section {
                     HStack {
                         Spacer()
@@ -251,7 +320,6 @@ struct SignupView: View {
                         .disabled(isProcessing)
                 }
             }
-        }
     }
 
     private func submit() async {
@@ -265,7 +333,10 @@ struct SignupView: View {
         do {
             let localID = UUID()
             
-            // Crear DTO con todos los datos del formulario
+            // Crear DTO con todos los datos del formulario. passwordHash
+            // viaja SOLO en esta petición (ver nota en MemberDTO): el
+            // backend lo guarda para que POST /v1/members/login pueda
+            // verificarlo más adelante, una vez el alta esté confirmada.
             let passwordHash = AuthService.hashPassword(password)
             let dto = MemberDTO(
                 id: localID,
@@ -298,70 +369,36 @@ struct SignupView: View {
                 membershipStatus: .pendingApproval,
                 joinDate: Date(),
                 rejectionReason: nil,
-                updatedAt: Date()
+                updatedAt: Date(),
+                passwordHash: passwordHash
             )
-            
+
             #if DEBUG
             print("📤 [SIGNUP] Enviando aplicación al servidor...")
             #endif
-            
-            // Enviar aplicación al backend (endpoint correcto: /v1/members/apply)
+
+            // Enviar aplicación al backend (endpoint correcto: /v1/members/apply).
+            // La respuesta YA NO trae authToken (ver MembershipApplicationResponse):
+            // mientras el alta esté pendingApproval no hay sesión, así que
+            // NO creamos ningún Member local todavía — solo recordamos el id
+            // para poder comprobar el estado más adelante sin volver a pedir
+            // credenciales (ver RootView.checkAuthentication() + PendingSignupStore).
             let response = try await apiClient.submitMembershipApplication(dto)
-            
+            PendingSignupStore.save(memberID: response.member.id)
+
             #if DEBUG
-            print("✅ [SIGNUP] Aplicación enviada - Token recibido y guardado en Keychain")
+            print("✅ [SIGNUP] Aplicación enviada - Sin sesión todavía")
             print("   Member status: \(response.member.membershipStatus)")
             #endif
 
-            // Crear member local con todos los datos
-            let member = Member(
-                id: localID,
-                firstName: firstName,
-                firstSurname: firstSurname,
-                secondSurname: secondSurname,
-                email: email,
-                secondaryEmail: secondaryEmail,
-                mobilePhone: mobilePhone,
-                landlinePhone: landlinePhone,
-                passwordHash: passwordHash,
-                address: address,
-                postalCode: postalCode,
-                city: city,
-                province: province,
-                birthDate: hasBirthDate ? birthDate : nil,
-                entryYear: entryYear,
-                exitYear: exitYear,
-                promotion: promotion,
-                profession: profession,
-                workplace: workplace,
-                iban: iban,
-                facebookUsername: facebookUsername,
-                instagramUsername: instagramUsername,
-                xUsername: xUsername,
-                tiktokUsername: tiktokUsername,
-                photoData: photoData,
-                isSearchable: isSearchable,
-                associationID: nil,
-                isVisibleToOtherAssociations: false,
-                membershipStatus: response.member.membershipStatus,
-                joinDate: response.member.joinDate,
-                syncStatus: .synced,
-                serverUpdatedAt: response.member.updatedAt
-            )
-            
-            modelContext.insert(member)
-            try modelContext.save()
-
-            #if DEBUG
-            print("💾 [SIGNUP] Member guardado localmente en SwiftData")
-            #endif
-            
-            // Importante: resetear isProcessing ANTES de dismiss
             isProcessing = false
 
-            dismiss()
-            onSuccess()
-            
+            // Nos quedamos en esta pantalla (no dismiss/onSuccess todavía):
+            // pasa a mostrar el aviso de "pendiente de validar" y, si se
+            // confirma mientras el usuario sigue aquí, entra directamente
+            // sin tener que volver a Login (ver pendingApprovalView(memberID:)).
+            submittedMemberID = response.member.id
+
         } catch {
             // Asegurar que isProcessing se resetea incluso si hay error
             isProcessing = false

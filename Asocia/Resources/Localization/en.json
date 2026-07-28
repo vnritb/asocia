@@ -51,6 +51,9 @@
   "signup.field.isSearchable": "Appear in member search",
   "signup.searchableFooter": "If enabled, other confirmed members will be able to find you when searching in Chat. You can change this anytime from your profile.",
   "signup.submit": "Submit membership application",
+  "signup.pending.title": "Application submitted",
+  "signup.pending.message": "Your membership is pending approval by the management team. Once confirmed, you'll be able to log in with the email and password you just entered.",
+  "signup.pending.close": "Log in later",
 
   "photoPicker.add": "Add photo",
   "photoPicker.change": "Change photo",

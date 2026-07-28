@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { resolveIntegrationTarget, type IntegrationTarget } from "../../../test-helpers/integrationTarget";
-import { applyForMembership, randomUUID, validApplicationPayload } from "../../../test-helpers/fixtures";
+import {
+  applyForMembership,
+  createActiveMember,
+  randomUUID,
+  validApplicationPayload
+} from "../../../test-helpers/fixtures";
 
 describe("api-gateway Integration", () => {
   let target: IntegrationTarget;
@@ -32,7 +37,7 @@ describe("api-gateway Integration", () => {
     });
 
     it("should route the authenticated 'me' endpoint using the member's own token", async () => {
-      const { authToken, member } = await applyForMembership(baseURL);
+      const { authToken, member } = await createActiveMember(baseURL);
 
       const response = await request(baseURL)
         .get("/v1/members/me")
@@ -49,24 +54,19 @@ describe("api-gateway Integration", () => {
       expect(response.body.error).toBe("notAuthenticated");
     });
 
-    it("should reject chat routes for a member whose application is still pending", async () => {
-      const { authToken } = await applyForMembership(baseURL);
+    it("should not hand out a session token (and so block chat access) while the application is still pending", async () => {
+      // Ya no hay forma de que un cliente obtenga un token para un socio
+      // pendiente: ni /apply ni /login lo devuelven hasta que está active
+      // (ver membership.integration.test.ts). Comprobamos justamente eso a
+      // través del gateway, que es donde vive el guardián de chat.
+      const { email, passwordHash } = await applyForMembership(baseURL);
 
-      const response = await request(baseURL)
-        .get("/v1/conversations")
-        .set("authorization", `Bearer ${authToken}`)
-        .expect(403);
-
-      expect(response.body.error).toBe("membershipNotActive");
+      const status = await request(baseURL).post("/v1/members/login").send({ email, passwordHash }).expect(403);
+      expect(status.body.error).toBe("pendingApproval");
     });
 
     it("should route to chat-service once the membership is confirmed, injecting the internal identity headers", async () => {
-      const { authToken, member } = await applyForMembership(baseURL);
-
-      await request(baseURL)
-        .post(`/v1/admin/members/${member.id}/confirm`)
-        .set("x-admin-key", adminKey)
-        .expect(200);
+      const { authToken, member } = await createActiveMember(baseURL);
 
       const conversations = await request(baseURL)
         .get("/v1/conversations")
@@ -86,9 +86,8 @@ describe("api-gateway Integration", () => {
   });
 
   describe("Service composition through the gateway", () => {
-    it("should apply for membership, confirm it and send a chat message", async () => {
-      const { authToken, member } = await applyForMembership(baseURL);
-      await request(baseURL).post(`/v1/admin/members/${member.id}/confirm`).set("x-admin-key", adminKey).expect(200);
+    it("should apply for membership, confirm it, log in and send a chat message", async () => {
+      const { authToken, member } = await createActiveMember(baseURL);
 
       const conversation = await request(baseURL)
         .post("/v1/conversations/individual")

@@ -9,7 +9,11 @@ struct LoginView: View {
     @Environment(LocalizationManager.self) private var loc
     
     let onLoginSuccess: () -> Void
-    
+    /// `true` cuando este dispositivo tiene una solicitud de alta enviada
+    /// y todavía sin confirmar (ver `PendingSignupStore`) — cambia el
+    /// mensaje para no sugerir "date de alta otra vez".
+    var hasPendingSignup: Bool = false
+
     @State private var email = ""
     @State private var password = ""
     @State private var isLoading = false
@@ -79,14 +83,23 @@ struct LoginView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                 }
-                
+
+                // Alta enviada desde este dispositivo, todavía sin confirmar
+                if hasPendingSignup {
+                    Text("Tu solicitud de alta está pendiente de confirmación. En cuanto el equipo gestor la confirme podrás iniciar sesión con el email y la contraseña que usaste al darte de alta.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
                 Spacer()
-                
+
                 // Botón para ir a registro
                 VStack(spacing: 12) {
-                    Text("¿No tienes cuenta?")
+                    Text(hasPendingSignup ? "¿Quieres darte de alta con otra cuenta?" : "¿No tienes cuenta?")
                         .foregroundColor(.secondary)
-                    
+
                     Button {
                         showSignup = true
                     } label: {
@@ -118,12 +131,17 @@ struct LoginView: View {
         
         do {
             let response = try await authService.login(email: email, password: password)
-            
+
             // Guardar miembro en SwiftData
             let member = response.member.toMember()
             modelContext.insert(member)
             try? modelContext.save()
-            
+
+            // Si había una solicitud pendiente de este dispositivo, este
+            // login ya la ha superado (mismas credenciales, ya confirmada).
+            PendingSignupStore.clear()
+
+
             // Notificar éxito
             await MainActor.run {
                 onLoginSuccess()

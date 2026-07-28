@@ -91,7 +91,33 @@ export const MEMBER_EDITABLE_FIELDS = [
   "isVisibleToOtherAssociations"
 ] as const;
 
+/**
+ * Respuesta de POST /v1/members/apply. Deliberadamente SIN `authToken`: el
+ * alta queda pendiente de confirmación y el cliente no debe tener sesión
+ * hasta que el backoffice la confirme — ver `MemberStatusResponse` y
+ * `MemberLoginResponse` más abajo, que son los dos únicos sitios que
+ * entregan un token de sesión.
+ */
 export interface MembershipApplicationResponse {
+  member: Member;
+}
+
+/** GET /v1/members/:id/status — consulta pública, sin token, del estado de una solicitud. */
+export interface MemberStatusResponse {
+  membershipStatus: MembershipStatus;
+  rejectionReason: string | null;
+  /** Solo presente cuando membershipStatus === "active". */
+  authToken?: string;
+  member?: Member;
+}
+
+export interface MemberLoginRequest {
+  email: string;
+  passwordHash: string;
+}
+
+/** POST /v1/members/login — solo tiene éxito si las credenciales son válidas y el alta está active. */
+export interface MemberLoginResponse {
   authToken: string;
   member: Member;
 }

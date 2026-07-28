@@ -4,60 +4,74 @@ import Foundation
 ///
 /// Comportamiento especial (solo en modo Local):
 /// - Después de 8 segundos de enviar una solicitud, automáticamente:
-///   - Si firstName empieza con "A" → Aprobado (active)
-///   - Si firstName empieza con "B" → Rechazado (rejected)
+///   - Si firstName es exactamente "A" → Aprobado (active)
+///   - Si firstName es exactamente "B" → Rechazado (rejected)
 ///   - Otros nombres → Sin validación automática (pendingApproval)
 ///
 /// Esto simula el backoffice aprobando/rechazando altas sin necesidad de
-/// intervención manual, útil para testing del flujo completo.
+/// intervención manual, útil para testing del flujo completo. A diferencia
+/// de una simulación en memoria, esto llama a los mismos endpoints
+/// `/v1/admin/members/:id/confirm` y `/reject` que usaría el backoffice
+/// real, así que la confirmación queda persistida en la base de datos
+/// (membership-service) y sobrevive a un reinicio de la app o a una sesión
+/// iniciada con un token de un acceso previo.
 actor LocalAutoValidationAPIClient: MembershipAPIClient {
-    
+
     private let realClient: APIClient
-    private var pendingApplications: [UUID: MemberDTO] = [:]
-    
-    init(baseURL: URL) {
+    private let baseURL: URL
+    private let adminAPIKey: String
+
+    /// `adminAPIKey` debe coincidir con `ADMIN_API_KEY` de membership-service
+    /// (ver backend/docker-compose.yml); por defecto es el mismo valor que
+    /// docker-compose usa para entorno local si no se sobreescribe.
+    init(
+        baseURL: URL,
+        adminAPIKey: String = ProcessInfo.processInfo.environment["ASOCIA_ADMIN_API_KEY"] ?? "changeme-admin-key"
+    ) {
         self.realClient = APIClient(baseURL: baseURL)
+        self.baseURL = baseURL
+        self.adminAPIKey = adminAPIKey
     }
-    
+
     // MARK: - MembershipAPIClient Protocol
-    
+
     func submitMembershipApplication(_ dto: MemberDTO) async throws -> MembershipApplicationResponse {
         #if DEBUG
         print("🔧 [LOCAL-AUTO] Interceptando submitMembershipApplication")
         #endif
-        
-        // Llamar al cliente real
+
         let response = try await realClient.submitMembershipApplication(dto)
-        
-        // Guardar la solicitud para procesarla después
-        pendingApplications[dto.id] = dto
-        
-        // Programar auto-validación según el nombre
-        scheduleAutoValidation(for: dto)
-        
+        scheduleAutoValidation(memberId: dto.id, firstName: dto.firstName)
         return response
     }
-    
+
     func updateMember(_ dto: MemberDTO) async throws -> MemberDTO {
-        // Pasar al cliente real
-        return try await realClient.updateMember(dto)
+        try await realClient.updateMember(dto)
     }
-    
+
+    func fetchCurrentMember() async throws -> MemberDTO {
+        try await realClient.fetchCurrentMember()
+    }
+
+    func checkStatus(id: UUID) async throws -> MemberStatusResponse {
+        try await realClient.checkStatus(id: id)
+    }
+
     // MARK: - Auto Validation Logic
-    
-    private func scheduleAutoValidation(for dto: MemberDTO) {
-        let firstName = dto.firstName.trimmingCharacters(in: .whitespaces)
-        
-        guard !firstName.isEmpty else {
+
+    private func scheduleAutoValidation(memberId: UUID, firstName: String) {
+        let name = firstName.trimmingCharacters(in: .whitespaces)
+
+        guard !name.isEmpty else {
             #if DEBUG
             print("⚠️ [LOCAL-AUTO] Nombre vacío, sin auto-validación")
             #endif
             return
         }
-        
+
         // Comparación EXACTA del nombre completo
         let action: ValidationAction
-        switch firstName {
+        switch name {
         case "A":
             action = .approve
         case "B":
@@ -65,89 +79,80 @@ actor LocalAutoValidationAPIClient: MembershipAPIClient {
         default:
             action = .none
         }
-        
+
         guard action != .none else {
             #if DEBUG
-            print("ℹ️ [LOCAL-AUTO] Nombre '\(firstName)' no requiere auto-validación (solo 'A' o 'B')")
+            print("ℹ️ [LOCAL-AUTO] Nombre '\(name)' no requiere auto-validación (solo 'A' o 'B')")
             #endif
             return
         }
-        
+
         #if DEBUG
-        print("⏱️ [LOCAL-AUTO] Programada auto-validación para '\(firstName)' → \(action) en 8 segundos")
+        print("⏱️ [LOCAL-AUTO] Programada auto-validación para '\(name)' → \(action) en 8 segundos")
         #endif
-        
-        // Programar la validación en 8 segundos
+
         Task {
             try? await Task.sleep(for: .seconds(8))
-            await performAutoValidation(memberId: dto.id, action: action, firstName: firstName)
+            await performAutoValidation(memberId: memberId, action: action, firstName: name)
         }
     }
-    
+
+    /// Llama al endpoint admin real (`/confirm` o `/reject`), igual que
+    /// haría el backoffice: así el `UPDATE` queda en la base de datos y no
+    /// solo en memoria de este proceso.
     private func performAutoValidation(memberId: UUID, action: ValidationAction, firstName: String) async {
-        guard var dto = pendingApplications[memberId] else {
-            #if DEBUG
-            print("⚠️ [LOCAL-AUTO] Solicitud \(memberId) ya no existe, cancelando auto-validación")
-            #endif
-            return
+        let path = action == .approve ? "confirm" : "reject"
+        let url = baseURL.appendingPathComponent("/v1/admin/members/\(memberId.uuidString.lowercased())/\(path)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(adminAPIKey, forHTTPHeaderField: "x-admin-key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if action == .reject {
+            request.httpBody = try? JSONEncoder().encode([
+                "reason": "Auto-rechazado en modo Local (nombre = 'B')"
+            ])
         }
-        
+
         #if DEBUG
         switch action {
         case .approve:
-            print("✅ [LOCAL-AUTO] AUTO-APROBANDO a '\(firstName)' (nombre = 'A')")
+            print("✅ [LOCAL-AUTO] AUTO-APROBANDO a '\(firstName)' (nombre = 'A') → \(url.absoluteString)")
         case .reject:
-            print("❌ [LOCAL-AUTO] AUTO-RECHAZANDO a '\(firstName)' (nombre = 'B')")
+            print("❌ [LOCAL-AUTO] AUTO-RECHAZANDO a '\(firstName)' (nombre = 'B') → \(url.absoluteString)")
         case .none:
             break
         }
         #endif
-        
-        // Actualizar el DTO con el nuevo estado
-        switch action {
-        case .approve:
-            dto.membershipStatus = .active
-            dto.joinDate = Date()
-            dto.rejectionReason = nil
-        case .reject:
-            dto.membershipStatus = .rejected
-            dto.rejectionReason = "Auto-rechazado en modo Local (nombre = 'B')"
-        case .none:
-            break
-        }
-        dto.updatedAt = Date()
-        
-        // Guardar el estado actualizado
-        pendingApplications[memberId] = dto
-        
-        #if DEBUG
-        print("🔔 [LOCAL-AUTO] Estado actualizado → \(dto.membershipStatus)")
-        print("   El SyncEngine lo detectará en el próximo fetchCurrentMember()")
-        #endif
-    }
-    
-    func fetchCurrentMember() async throws -> MemberDTO {
-        // Primero intentar obtener del backend real
-        var member = try await realClient.fetchCurrentMember()
-        
-        // Si hay una versión auto-validada, usar esa
-        if let validatedMember = pendingApplications[member.id] {
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                #if DEBUG
+                let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                print("⚠️ [LOCAL-AUTO] El backend rechazó la auto-validación (status \(status))")
+                #endif
+                return
+            }
             #if DEBUG
-            print("🔄 [LOCAL-AUTO] Devolviendo versión auto-validada: \(validatedMember.membershipStatus)")
+            print("🔔 [LOCAL-AUTO] Confirmación persistida en la base de datos por membership-service")
             #endif
-            member = validatedMember
+            _ = data
+        } catch {
+            #if DEBUG
+            print("⚠️ [LOCAL-AUTO] No se pudo contactar con membership-service para auto-validar: \(error)")
+            #endif
         }
-        
-        return member
     }
-    
+
     // MARK: - Helpers
-    
-    private enum ValidationAction: CustomStringConvertible {
+
+    private enum ValidationAction: CustomStringConvertible, Equatable {
         case approve
         case reject
         case none
-        
+
         var description: String {
             switch self {
             case .approve: return "APROBAR"
@@ -157,4 +162,3 @@ actor LocalAutoValidationAPIClient: MembershipAPIClient {
         }
     }
 }
-

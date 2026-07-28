@@ -1,26 +1,22 @@
 import Foundation
 import CryptoKit
 
-/// DTOs para autenticación
+/// DTOs para autenticación. Coinciden con `MemberLoginRequest`/
+/// `MemberLoginResponse` en `backend/packages/shared/src/types.ts`.
 struct LoginRequest: Codable {
     let email: String
-    let password: String
+    let passwordHash: String
 }
 
 struct LoginResponse: Codable {
-    let token: String
+    let authToken: String
     let member: MemberDTO
 }
 
-struct RegisterRequest: Codable {
-    let id: UUID
-    let email: String
-    let password: String
-    let firstName: String
-    let firstSurname: String
-}
-
-/// Servicio de autenticación contra auth-service
+/// Servicio de autenticación. Llama a `POST /v1/members/login` de
+/// membership-service (a través del api-gateway, que ya proxea todo lo que
+/// empieza por `/v1/members`) — no existe un microservicio de auth
+/// independiente, así que NO usar rutas `/v1/auth/*`.
 actor AuthService {
     private let baseURL: URL
     private let session: URLSession
@@ -42,52 +38,28 @@ actor AuthService {
     
     // MARK: - Login
     
-    /// Autentica un usuario con email y contraseña
+    /// Autentica un usuario con email y contraseña. Solo tiene éxito (200 +
+    /// token) si las credenciales son correctas Y el alta ya está `active`
+    /// — si está pendiente o rechazada, membership-service devuelve 403 y
+    /// esto lanza `.pendingApproval`/`.rejected` (ver `post()` más abajo).
     func login(email: String, password: String) async throws -> LoginResponse {
         #if DEBUG
         print("🔐 [AUTH] login - email: \(email)")
         #endif
-        
-        let request = LoginRequest(email: email, password: password)
-        let response: LoginResponse = try await post("/v1/auth/login", body: request)
-        
+
+        let request = LoginRequest(email: email, passwordHash: AuthService.hashPassword(password))
+        let response: LoginResponse = try await post("/v1/members/login", body: request)
+
         // Guardar token en Keychain
-        KeychainStore.saveToken(response.token)
-        
+        KeychainStore.saveToken(response.authToken)
+
         #if DEBUG
         print("   ✅ Login exitoso - Token guardado")
         #endif
-        
+
         return response
     }
-    
-    // MARK: - Register (desde pantalla de alta)
-    
-    /// Registra un nuevo usuario y devuelve el token
-    func register(id: UUID, email: String, password: String, firstName: String, firstSurname: String) async throws -> LoginResponse {
-        #if DEBUG
-        print("🔐 [AUTH] register - email: \(email)")
-        #endif
-        
-        let request = RegisterRequest(
-            id: id,
-            email: email,
-            password: password,
-            firstName: firstName,
-            firstSurname: firstSurname
-        )
-        let response: LoginResponse = try await post("/v1/auth/register", body: request)
-        
-        // Guardar token en Keychain
-        KeychainStore.saveToken(response.token)
-        
-        #if DEBUG
-        print("   ✅ Registro exitoso - Token guardado")
-        #endif
-        
-        return response
-    }
-    
+
     // MARK: - Logout
     
     /// Cierra sesión eliminando el token
@@ -144,9 +116,21 @@ actor AuthService {
         #endif
         
         guard (200..<300).contains(http.statusCode) else {
-            // Intentar extraer mensaje de error del backend
             if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                throw AuthServiceError.server(message: errorResponse.error)
+                switch errorResponse.error {
+                case "invalidCredentials":
+                    throw AuthServiceError.invalidCredentials
+                case "pendingApproval":
+                    throw AuthServiceError.pendingApproval
+                case "rejected":
+                    throw AuthServiceError.rejected(reason: errorResponse.rejectionReason)
+                case "emailAlreadyExists":
+                    throw AuthServiceError.emailAlreadyExists
+                case "memberAlreadyExists":
+                    throw AuthServiceError.memberAlreadyExists
+                default:
+                    throw AuthServiceError.server(message: errorResponse.error)
+                }
             }
             throw AuthServiceError.server(message: "Error del servidor (\(http.statusCode))")
         }
@@ -163,8 +147,11 @@ enum AuthServiceError: LocalizedError {
     case transport
     case server(message: String)
     case invalidCredentials
+    case pendingApproval
+    case rejected(reason: String?)
     case emailAlreadyExists
-    
+    case memberAlreadyExists
+
     var errorDescription: String? {
         switch self {
         case .transport:
@@ -173,14 +160,21 @@ enum AuthServiceError: LocalizedError {
             return message
         case .invalidCredentials:
             return "Email o contraseña incorrectos."
+        case .pendingApproval:
+            return "Tu alta todavía está pendiente de confirmación por el equipo gestor."
+        case .rejected(let reason):
+            return reason ?? "Tu alta ha sido rechazada."
         case .emailAlreadyExists:
-            return "Este email ya está registrado."
+            return "Ya existe una solicitud de alta con este email."
+        case .memberAlreadyExists:
+            return "Ya existe una solicitud de alta para este usuario."
         }
     }
 }
 
 struct ErrorResponse: Decodable {
     let error: String
+    let rejectionReason: String?
 }
 
 // MARK: - Environment Key para AuthService

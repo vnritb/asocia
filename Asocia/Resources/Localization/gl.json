@@ -51,6 +51,9 @@
   "signup.field.isSearchable": "Aparecer na busca de socios",
   "signup.searchableFooter": "Se o activas, outros socios coa alta confirmada poderán atoparte ao buscar no Chat. Podes cambialo cando queiras desde a túa ficha.",
   "signup.submit": "Enviar solicitude de alta",
+  "signup.pending.title": "Solicitude enviada",
+  "signup.pending.message": "A túa alta está pendente de confirmación polo equipo xestor. Unha vez confirmada, poderás entrar co email e o contrasinal que acabas de indicar.",
+  "signup.pending.close": "Iniciar sesión máis tarde",
 
   "photoPicker.add": "Engadir fotografía",
   "photoPicker.change": "Cambiar fotografía",

@@ -39,7 +39,13 @@ struct MemberDTO: Codable, Sendable {
     var joinDate: Date?
     var rejectionReason: String?
     var updatedAt: Date
-    
+
+    /// Solo se usa (y se envía) en `submitMembershipApplication`, para que
+    /// `POST /v1/members/login` pueda verificar credenciales más adelante.
+    /// El backend nunca lo devuelve en ninguna respuesta, así que en
+    /// decodificación siempre queda a `nil`.
+    var passwordHash: String?
+
     // MARK: - Custom Decoding
     
     /// Inicializador normal para crear DTOs desde la app
@@ -74,7 +80,8 @@ struct MemberDTO: Codable, Sendable {
         membershipStatus: MembershipStatus,
         joinDate: Date?,
         rejectionReason: String?,
-        updatedAt: Date
+        updatedAt: Date,
+        passwordHash: String? = nil
     ) {
         self.id = id
         self.firstName = firstName
@@ -107,8 +114,9 @@ struct MemberDTO: Codable, Sendable {
         self.joinDate = joinDate
         self.rejectionReason = rejectionReason
         self.updatedAt = updatedAt
+        self.passwordHash = passwordHash
     }
-    
+
     /// Decodificación personalizada para manejar backends que devuelven
     /// números (0/1) en lugar de booleanos para isSearchable e isVisibleToOtherAssociations
     init(from decoder: Decoder) throws {
@@ -163,10 +171,11 @@ struct MemberDTO: Codable, Sendable {
         joinDate = try container.decodeIfPresent(Date.self, forKey: .joinDate)
         rejectionReason = try container.decodeIfPresent(String.self, forKey: .rejectionReason)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        passwordHash = try container.decodeIfPresent(String.self, forKey: .passwordHash)
     }
-    
+
     // MARK: - CodingKeys
-    
+
     private enum CodingKeys: String, CodingKey {
         case id, firstName, firstSurname, secondSurname
         case email, secondaryEmail, mobilePhone, landlinePhone
@@ -176,14 +185,28 @@ struct MemberDTO: Codable, Sendable {
         case facebookUsername, instagramUsername, xUsername, tiktokUsername
         case photoBase64, isSearchable, associationID, isVisibleToOtherAssociations
         case membershipStatus, joinDate, rejectionReason, updatedAt
+        case passwordHash
     }
 }
 
 
-/// Resposta en enviar la sol·licitud d'alta.
+/// Resposta en enviar la sol·licitud d'alta. A propòsit SENSE `authToken`:
+/// l'alta queda `pendingApproval` i el client no ha de tenir sessió fins
+/// que el backoffice la confirmi — veure `MemberStatusResponse` i
+/// `checkStatus(id:)`, l'únic lloc (junt amb el login) que arriba a
+/// entregar un token de sessió.
 struct MembershipApplicationResponse: Codable, Sendable {
-    var authToken: String
     var member: MemberDTO
+}
+
+/// Resposta de `GET /v1/members/:id/status`: consulta pública (sense token)
+/// de l'estat d'una sol·licitud. Només porta `authToken`/`member` quan
+/// `membershipStatus == .active`.
+struct MemberStatusResponse: Codable, Sendable {
+    var membershipStatus: MembershipStatus
+    var rejectionReason: String?
+    var authToken: String?
+    var member: MemberDTO?
 }
 
 /// Contracte de xarxa del qual depenen `SyncEngine` i `SignupView`.
@@ -195,6 +218,10 @@ protocol MembershipAPIClient: Sendable {
     func submitMembershipApplication(_ dto: MemberDTO) async throws -> MembershipApplicationResponse
     func fetchCurrentMember() async throws -> MemberDTO
     func updateMember(_ dto: MemberDTO) async throws -> MemberDTO
+    /// Consulta si una sol·licitud enviada des d'aquest dispositiu ja s'ha
+    /// confirmat, sense necessitar cap token — veure `RootView` i
+    /// `PendingSignupStore`.
+    func checkStatus(id: UUID) async throws -> MemberStatusResponse
 }
 
 /// Client HTTP cap a l'API Gateway del backend de microserveis.
@@ -227,15 +254,30 @@ actor APIClient: MembershipAPIClient {
         #if DEBUG
         print("📡 [API] submitMembershipApplication - \(dto.firstName) \(dto.firstSurname)")
         #endif
-        
+
+        // Importante: la respuesta ya NO trae authToken (ver
+        // MembershipApplicationResponse). Mientras el alta esté
+        // pendingApproval no hay sesión; el llamador (SignupView) debe
+        // guardar solo el `member.id` para poder comprobar el estado más
+        // adelante con checkStatus(id:).
         let response: MembershipApplicationResponse = try await post("/v1/members/apply", body: dto, authenticated: false)
-        KeychainStore.saveToken(response.authToken)
-        
+
         #if DEBUG
-        print("   ✅ Application submitted - Token saved")
+        print("   ✅ Application submitted - Sin sesión todavía (pendingApproval)")
         #endif
-        
+
         return response
+    }
+
+    /// Consulta pública el estado de una solicitud enviada anteriormente
+    /// desde este dispositivo. Devuelve `authToken`/`member` solo si ya
+    /// está `active` — ver `RootView.checkAuthentication()`.
+    func checkStatus(id: UUID) async throws -> MemberStatusResponse {
+        #if DEBUG
+        print("📡 [API] checkStatus - \(id)")
+        #endif
+
+        return try await get("/v1/members/\(id.uuidString.lowercased())/status", authenticated: false)
     }
 
     // MARK: - Sincronització
@@ -273,8 +315,8 @@ actor APIClient: MembershipAPIClient {
 
     // MARK: - HTTP helpers
 
-    private func get<Response: Decodable>(_ path: String) async throws -> Response {
-        try await send(path: path, method: "GET", body: Optional<Int>.none)
+    private func get<Response: Decodable>(_ path: String, authenticated: Bool = true) async throws -> Response {
+        try await send(path: path, method: "GET", body: Optional<Int>.none, authenticated: authenticated)
     }
 
     private func post<Body: Encodable, Response: Decodable>(
@@ -351,6 +393,17 @@ actor APIClient: MembershipAPIClient {
                 print("   📄 Respuesta del servidor: \(errorBody)")
             }
             #endif
+
+            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                switch errorResponse.error {
+                case "emailAlreadyExists":
+                    throw APIClientError.emailAlreadyExists
+                case "memberAlreadyExists":
+                    throw APIClientError.memberAlreadyExists
+                default:
+                    break
+                }
+            }
             throw APIClientError.server(statusCode: http.statusCode)
         }
 
@@ -396,6 +449,8 @@ actor APIClient: MembershipAPIClient {
 enum APIClientError: LocalizedError {
     case notAuthenticated
     case transport
+    case emailAlreadyExists
+    case memberAlreadyExists
     case server(statusCode: Int)
 
     var errorDescription: String? {
@@ -404,6 +459,10 @@ enum APIClientError: LocalizedError {
             return "Sessió no iniciada."
         case .transport:
             return "No hi ha connexió amb el servidor."
+        case .emailAlreadyExists:
+            return "Ya existe una solicitud de alta con este email."
+        case .memberAlreadyExists:
+            return "Ya existe una solicitud de alta para este usuario."
         case .server(let statusCode):
             return "Error del servidor (\(statusCode))."
         }

@@ -22,12 +22,12 @@ describe("membership-service Integration", () => {
   });
 
   describe("POST /v1/members/apply", () => {
-    it("should create a pending application and return an authToken", async () => {
+    it("should create a pending application and NOT return an authToken", async () => {
       const payload = validApplicationPayload();
 
       const response = await request(baseURL).post("/v1/members/apply").send(payload).expect(201);
 
-      expect(response.body.authToken).toEqual(expect.any(String));
+      expect(response.body.authToken).toBeUndefined();
       expect(response.body.member).toMatchObject({
         id: expect.any(String),
         firstName: payload.firstName,
@@ -54,11 +54,92 @@ describe("membership-service Integration", () => {
 
       expect(response.body.error).toBe("invalidApplication");
     });
+
+    it("should reject a second application with the same email", async () => {
+      const payload = validApplicationPayload();
+      await request(baseURL).post("/v1/members/apply").send(payload).expect(201);
+
+      const response = await request(baseURL)
+        .post("/v1/members/apply")
+        .send({ ...payload, firstName: "Otro" })
+        .expect(409);
+
+      expect(response.body.error).toBe("emailAlreadyExists");
+    });
+  });
+
+  describe("GET /v1/members/:id/status", () => {
+    it("should report pendingApproval without a token while unconfirmed", async () => {
+      const { member } = await applyForMembership(baseURL);
+
+      const response = await request(baseURL).get(`/v1/members/${member.id}/status`).expect(200);
+
+      expect(response.body).toMatchObject({ membershipStatus: "pendingApproval" });
+      expect(response.body.authToken).toBeUndefined();
+    });
+
+    it("should return an authToken once the application is confirmed", async () => {
+      const { member, email } = await applyForMembership(baseURL);
+      const adminKey = process.env.ADMIN_API_KEY ?? "changeme-admin-key";
+      await request(baseURL).post(`/v1/admin/members/${member.id}/confirm`).set("x-admin-key", adminKey).expect(200);
+
+      const response = await request(baseURL).get(`/v1/members/${member.id}/status`).expect(200);
+
+      expect(response.body.membershipStatus).toBe("active");
+      expect(response.body.authToken).toEqual(expect.any(String));
+      expect(response.body.member).toMatchObject({ id: member.id, email });
+    });
+
+    it("should return 404 for an unknown id", async () => {
+      await request(baseURL).get("/v1/members/00000000-0000-0000-0000-000000000000/status").expect(404);
+    });
+  });
+
+  describe("POST /v1/members/login", () => {
+    it("should reject unknown credentials", async () => {
+      const response = await request(baseURL)
+        .post("/v1/members/login")
+        .send({ email: "no-existe@example.com", passwordHash: "whatever" })
+        .expect(401);
+
+      expect(response.body.error).toBe("invalidCredentials");
+    });
+
+    it("should reject a correct email with the wrong password hash", async () => {
+      const { email } = await applyForMembership(baseURL);
+
+      const response = await request(baseURL)
+        .post("/v1/members/login")
+        .send({ email, passwordHash: "not-the-right-hash" })
+        .expect(401);
+
+      expect(response.body.error).toBe("invalidCredentials");
+    });
+
+    it("should reject valid credentials while the application is still pending", async () => {
+      const { email, passwordHash } = await applyForMembership(baseURL);
+
+      const response = await request(baseURL).post("/v1/members/login").send({ email, passwordHash }).expect(403);
+
+      expect(response.body.error).toBe("pendingApproval");
+    });
+
+    it("should return an authToken for valid credentials once active", async () => {
+      const { authToken, member } = await createActiveMember(baseURL);
+      expect(authToken).toEqual(expect.any(String));
+
+      const response = await request(baseURL)
+        .get("/v1/members/me")
+        .set("authorization", `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body.id).toBe(member.id);
+    });
   });
 
   describe("GET /v1/members/me", () => {
     it("should return the member's own record for a valid token", async () => {
-      const { authToken, member } = await applyForMembership(baseURL);
+      const { authToken, member } = await createActiveMember(baseURL);
 
       const response = await request(baseURL)
         .get("/v1/members/me")
@@ -84,7 +165,7 @@ describe("membership-service Integration", () => {
 
   describe("PATCH /v1/members/me", () => {
     it("should update editable fields", async () => {
-      const { authToken } = await applyForMembership(baseURL);
+      const { authToken } = await createActiveMember(baseURL);
 
       const response = await request(baseURL)
         .patch("/v1/members/me")
@@ -96,12 +177,12 @@ describe("membership-service Integration", () => {
     });
 
     it("should not allow the member to change their own membershipStatus", async () => {
-      const { authToken, member } = await applyForMembership(baseURL);
+      const { authToken, member } = await createActiveMember(baseURL);
 
       const response = await request(baseURL)
         .patch("/v1/members/me")
         .set("authorization", `Bearer ${authToken}`)
-        .send({ membershipStatus: "active" })
+        .send({ membershipStatus: "rejected" })
         .expect(200);
 
       expect(response.body.membershipStatus).toBe(member.membershipStatus);

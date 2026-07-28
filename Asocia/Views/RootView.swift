@@ -11,9 +11,12 @@ import SwiftData
 struct RootView: View {
     @Query private var members: [Member]
     @Environment(\.authService) private var authService
-    
+    @Environment(\.apiClient) private var apiClient
+    @Environment(\.modelContext) private var modelContext
+
     @State private var isCheckingAuth = true
     @State private var hasValidAuth = false
+    @State private var hasPendingSignup = false
 
     private var currentMember: Member? { members.first }
 
@@ -23,11 +26,14 @@ struct RootView: View {
                 // Verificando autenticación
                 ProgressView("Cargando...")
             } else if !hasValidAuth {
-                // Sin autenticación → Mostrar Login
-                LoginView {
-                    // Al hacer login exitoso, actualizar estado
+                // Sin token: mientras el alta no esté confirmada, el único
+                // sitio al que se tiene acceso es Login (que a su vez da
+                // paso a "Crear Cuenta"). Si hay una solicitud pendiente de
+                // este dispositivo, se lo indicamos para que sepa que puede
+                // limitarse a esperar/reintentar en vez de darse de alta otra vez.
+                LoginView(onLoginSuccess: {
                     checkAuth()
-                }
+                }, hasPendingSignup: hasPendingSignup)
             } else if let member = currentMember {
                 // Autenticado y con miembro
                 if member.membershipStatus.hasChatAccess {
@@ -36,10 +42,12 @@ struct RootView: View {
                     MemberProfileView(member: member)
                 }
             } else {
-                // Autenticado pero sin miembro (no debería pasar)
-                LoginView {
-                    checkAuth()
-                }
+                // Token válido pero todavía sin ficha local descargada
+                // (primer arranque en este dispositivo, o caché vacía):
+                // checkAuthentication() ya ha intentado traerla; si seguimos
+                // aquí es que la petición falló (sin red) y toca esperar al
+                // reintento de SyncEngine, no mandar al usuario a Login.
+                ProgressView("Sincronizando...")
             }
         }
         .animation(.default, value: hasValidAuth)
@@ -48,11 +56,49 @@ struct RootView: View {
             await checkAuthentication()
         }
     }
-    
+
     private func checkAuthentication() async {
-        // Verificar si hay token válido
         hasValidAuth = await authService.hasValidToken()
-        
+
+        // Sin token, pero hay una alta enviada desde este dispositivo que
+        // podría haberse confirmado ya: lo comprobamos sin pedir nada al
+        // usuario ("sincronizar"). Si ya está active, esto nos entrega el
+        // authToken igual que haría un login manual.
+        if !hasValidAuth, let pendingID = PendingSignupStore.memberID {
+            hasPendingSignup = true
+            if let status = try? await apiClient.checkStatus(id: pendingID),
+               status.membershipStatus == .active,
+               let token = status.authToken,
+               let memberDTO = status.member {
+                KeychainStore.saveToken(token)
+                modelContext.insert(memberDTO.toMember())
+                try? modelContext.save()
+                PendingSignupStore.clear()
+                hasPendingSignup = false
+                hasValidAuth = true
+            }
+        }
+
+        // Con token pero sin ficha local (primer arranque en este
+        // dispositivo, o caché vacía): la traemos del backend antes de
+        // decidir qué pantalla mostrar, para no acabar nunca en Login
+        // teniendo ya una sesión válida.
+        if hasValidAuth, currentMember == nil {
+            do {
+                let remote = try await apiClient.fetchCurrentMember()
+                modelContext.insert(remote.toMember())
+                try? modelContext.save()
+            } catch APIClientError.notAuthenticated {
+                // El token que había en Keychain ya no es válido en el
+                // backend (revocado, etc.): aquí sí toca volver a Login.
+                await authService.logout()
+                hasValidAuth = false
+            } catch {
+                // Sin red u otro error transitorio: dejamos hasValidAuth a
+                // true y mostramos el spinner; SyncEngine reintentará.
+            }
+        }
+
         #if DEBUG
         print("✅ RootView - Verificación de autenticación")
         print("   Token válido: \(hasValidAuth)")
@@ -61,10 +107,11 @@ struct RootView: View {
             print("   Estado del miembro: \(member.membershipStatus)")
         }
         #endif
-        
+
         isCheckingAuth = false
     }
-    
+
+
     private func checkAuth() {
         Task {
             hasValidAuth = await authService.hasValidToken()

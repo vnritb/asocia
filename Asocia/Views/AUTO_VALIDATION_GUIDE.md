@@ -155,13 +155,12 @@ Deberías ver:
 
 ... (espera 8 segundos) ...
 
-✅ [LOCAL-AUTO] AUTO-APROBANDO a 'Ana' (nombre empieza con A)
-🔔 [LOCAL-AUTO] Estado actualizado → active
+✅ [LOCAL-AUTO] AUTO-APROBANDO a 'A' (nombre = 'A') → http://localhost:4000/v1/admin/members/.../confirm
+🔔 [LOCAL-AUTO] Confirmación persistida en la base de datos por membership-service
 
-... (en el próximo sync, ~30 segundos) ...
+... (en el próximo sync, ~5 minutos, o al volver a primer plano) ...
 
 📡 [SYNC] Sincronizando con el servidor...
-🔄 [LOCAL-AUTO] Devolviendo versión auto-validada: active
 ✅ [SYNC] Estado actualizado a: active
 ```
 
@@ -212,7 +211,7 @@ El cambio de estado se detecta cuando el `SyncEngine` hace un fetch, que ocurre:
 - Al volver a primer plano
 
 ### Backend Real
-El backend **no** se modifica. La auto-validación solo intercepta las respuestas del `APIClient` en memoria.
+La auto-validación llama a los mismos endpoints admin (`/v1/admin/members/:id/confirm` y `/reject`) que usaría el backoffice real, con la cabecera `x-admin-key`. El `UPDATE` queda persistido en la base de datos de `membership-service`, por lo que el estado se mantiene aunque se reinicie la app o se vuelva a entrar con un token de una sesión anterior.
 
 ---
 

@@ -2,7 +2,12 @@ import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import crypto from "node:crypto";
 import { MEMBER_EDITABLE_FIELDS } from "@asocia/shared";
-import type { Member, MembershipApplicationResponse } from "@asocia/shared";
+import type {
+  Member,
+  MembershipApplicationResponse,
+  MemberStatusResponse,
+  MemberLoginResponse
+} from "@asocia/shared";
 import { pool, ensureSchema } from "./db";
 
 const PORT = Number(process.env.PORT ?? 4001);
@@ -129,7 +134,25 @@ app.post("/v1/members/apply", async (req, res) => {
   }
 
   const id = body.id && /^[0-9a-f-]{36}$/i.test(body.id) ? body.id : crypto.randomUUID();
+
+  const email = body.email?.trim();
+  if (email) {
+    const existingEmail = await pool.query(
+      "SELECT id FROM membership.members WHERE LOWER(email) = LOWER(?)",
+      [email]
+    );
+    if (existingEmail.rowCount > 0) {
+      return res.status(409).json({ error: "emailAlreadyExists" });
+    }
+  }
+
+  const existingMember = await pool.query("SELECT id FROM membership.members WHERE id = ?", [id]);
+  if (existingMember.rowCount > 0) {
+    return res.status(409).json({ error: "memberAlreadyExists" });
+  }
+
   const authToken = crypto.randomBytes(32).toString("hex");
+  const passwordHash = typeof (req.body as any)?.passwordHash === "string" ? (req.body as any).passwordHash : "";
 
   await pool.query(
     `INSERT INTO membership.members (
@@ -137,8 +160,8 @@ app.post("/v1/members/apply", async (req, res) => {
        mobile_phone, landline_phone, address, postal_code, city, province,
        birth_date, entry_year, exit_year, promotion, profession, workplace,
        iban, facebook_username, instagram_username, x_username, tiktok_username,
-       photo_base64, is_searchable, membership_status, auth_token, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendingApproval', ?, NOW())`,
+       photo_base64, is_searchable, membership_status, auth_token, password_hash, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendingApproval', ?, ?, NOW())`,
     [
       id, body.firstName, body.firstSurname, body.secondSurname ?? "",
       body.email ?? "", body.secondaryEmail ?? "", body.mobilePhone ?? "", body.landlinePhone ?? "",
@@ -147,13 +170,75 @@ app.post("/v1/members/apply", async (req, res) => {
       body.profession ?? "", body.workplace ?? "", body.iban ?? "",
       body.facebookUsername ?? "", body.instagramUsername ?? "", body.xUsername ?? "", body.tiktokUsername ?? "",
       body.photoBase64 ?? null, body.isSearchable ?? false,
-      authToken
+      authToken, passwordHash
     ]
   );
 
+  // Importante: a diferencia de antes, NO devolvemos el authToken aquí. El
+  // alta queda pendingApproval y el cliente no debe tener sesión todavía —
+  // solo la consigue vía POST /v1/members/login o GET /v1/members/:id/status
+  // una vez el backoffice confirma la cuenta (ver esos endpoints más abajo).
   const inserted = await pool.query("SELECT * FROM membership.members WHERE id = ?", [id]);
-  const response: MembershipApplicationResponse = { authToken, member: toMemberJSON(inserted.rows[0]) };
+  const response: MembershipApplicationResponse = { member: toMemberJSON(inserted.rows[0]) };
   res.status(201).json(response);
+});
+
+/**
+ * Consulta pública (sin token) del estado de una solicitud de alta, a
+ * partir del `id` que devolvió `/apply`. Es lo que la app usa para
+ * "sincronizar" tras el alta: mientras el socio siga `pendingApproval` o
+ * `rejected` no hay token; en cuanto el backoffice lo confirma, esta misma
+ * llamada empieza a devolver el `authToken` de sesión.
+ */
+app.get("/v1/members/:id/status", async (req, res) => {
+  const result = await pool.query("SELECT * FROM membership.members WHERE id = ?", [req.params.id]);
+  if (result.rowCount === 0) return res.status(404).json({ error: "notFound" });
+
+  const row = result.rows[0];
+  if (row.membership_status !== "active") {
+    const pending: MemberStatusResponse = {
+      membershipStatus: row.membership_status,
+      rejectionReason: row.rejection_reason ?? null
+    };
+    return res.json(pending);
+  }
+  const active: MemberStatusResponse = {
+    membershipStatus: "active",
+    rejectionReason: null,
+    authToken: row.auth_token,
+    member: toMemberJSON(row)
+  };
+  res.json(active);
+});
+
+/**
+ * Login por email + hash de contraseña. Solo devuelve `authToken` si las
+ * credenciales son correctas Y el alta ya está `active` — mientras esté
+ * pendiente o rechazada, el socio no tiene forma de entrar al resto de la
+ * app (ver también /apply, que ya no da token, y /:id/status).
+ */
+app.post("/v1/members/login", async (req, res) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+  const passwordHash = typeof req.body?.passwordHash === "string" ? req.body.passwordHash : "";
+  if (!email || !passwordHash) {
+    return res.status(422).json({ error: "invalidCredentials" });
+  }
+
+  const result = await pool.query("SELECT * FROM membership.members WHERE LOWER(email) = LOWER(?)", [email]);
+  const row = result.rows[0];
+
+  // Mismo error tanto si el email no existe como si la contraseña no
+  // coincide, para no revelar qué emails están registrados.
+  if (!row || row.password_hash !== passwordHash) {
+    return res.status(401).json({ error: "invalidCredentials" });
+  }
+
+  if (row.membership_status !== "active") {
+    return res.status(403).json({ error: row.membership_status, rejectionReason: row.rejection_reason ?? null });
+  }
+
+  const response: MemberLoginResponse = { authToken: row.auth_token, member: toMemberJSON(row) };
+  res.json(response);
 });
 
 // ---------------------------------------------------------------------------

@@ -24,12 +24,15 @@ struct AsociaApp: App {
     init() {
         // Limpiar datos persistentes y usar contenedor en memoria si se ejecutan UI tests
         #if DEBUG
-        
-        let url = URL.applicationSupportDirectory.appending(path: "default.store")
-        try? FileManager.default.removeItem(at: url)
-        
         let isUITesting = CommandLine.arguments.contains("-UITEST_RESET_STATE")
         if isUITesting {
+            // Solo aquí tiene sentido empezar de cero: los UI tests necesitan
+            // arrancar siempre desde "no soy socio". Si esto se ejecutara en
+            // cada lanzamiento normal en DEBUG, borraría el Member local en
+            // cada relanzamiento aunque el token del Keychain siguiera siendo
+            // válido, y RootView acabaría mostrando Login sin motivo.
+            let url = URL.applicationSupportDirectory.appending(path: "default.store")
+            try? FileManager.default.removeItem(at: url)
             print("🧪 UI Test mode: Usando contenedor en memoria y limpiando UserDefaults...")
             UserDefaults.standard.removePersistentDomain(forName: Bundle.main.bundleIdentifier!)
             self.modelContainer = PersistenceController.inMemoryContainer()

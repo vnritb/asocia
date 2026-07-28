@@ -30,7 +30,7 @@ actor MockMembershipAPIClient: MembershipAPIClient {
 
         scheduleSimulatedApproval()
 
-        return MembershipApplicationResponse(authToken: "mock-token", member: pending)
+        return MembershipApplicationResponse(member: pending)
     }
 
     func fetchCurrentMember() async throws -> MemberDTO {
@@ -41,6 +41,18 @@ actor MockMembershipAPIClient: MembershipAPIClient {
     func updateMember(_ dto: MemberDTO) async throws -> MemberDTO {
         member = dto
         return dto
+    }
+
+    /// Simula GET /v1/members/:id/status: solo entrega authToken/member una
+    /// vez `scheduleSimulatedApproval()` ha pasado el socio a `.active`.
+    func checkStatus(id: UUID) async throws -> MemberStatusResponse {
+        guard let member, member.id == id else {
+            return MemberStatusResponse(membershipStatus: .pendingApproval, rejectionReason: nil, authToken: nil, member: nil)
+        }
+        guard member.membershipStatus == .active else {
+            return MemberStatusResponse(membershipStatus: member.membershipStatus, rejectionReason: nil, authToken: nil, member: nil)
+        }
+        return MemberStatusResponse(membershipStatus: .active, rejectionReason: nil, authToken: "mock-token", member: member)
     }
 
     private func scheduleSimulatedApproval() {

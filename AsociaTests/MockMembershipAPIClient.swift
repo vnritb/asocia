@@ -33,7 +33,7 @@ actor SyncTestMembershipAPIClient: MembershipAPIClient {
     func submitMembershipApplication(_ dto: MemberDTO) async throws -> MembershipApplicationResponse {
         var applied = dto
         applied.membershipStatus = .pendingApproval
-        return MembershipApplicationResponse(authToken: "test-token", member: applied)
+        return MembershipApplicationResponse(member: applied)
     }
 
     func fetchCurrentMember() async throws -> MemberDTO {
@@ -45,6 +45,14 @@ actor SyncTestMembershipAPIClient: MembershipAPIClient {
         if let updateError { throw updateError }
         updateCalls.append(dto)
         return updateResultProvider?(dto) ?? dto
+    }
+
+    func checkStatus(id: UUID) async throws -> MemberStatusResponse {
+        let dto = try? fetchResult.get()
+        guard let dto, dto.id == id, dto.membershipStatus == .active else {
+            return MemberStatusResponse(membershipStatus: .pendingApproval, rejectionReason: nil, authToken: nil, member: nil)
+        }
+        return MemberStatusResponse(membershipStatus: .active, rejectionReason: nil, authToken: "test-token", member: dto)
     }
 }
 
