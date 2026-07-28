@@ -16,6 +16,12 @@ struct MemberProfileView: View {
     @Environment(LocalizationManager.self) private var loc
     @State private var isEditing = false
     @State private var showSettings = false
+    @State private var showDiscardConfirmation = false
+    /// Copia de los campos editables tomada al entrar en modo edición, para
+    /// poder restaurarlos si el usuario cancela (`member` está enlazado
+    /// directamente al formulario, así que los campos se modifican en vivo
+    /// mientras se escribe, no solo al guardar).
+    @State private var editSnapshot: MemberEditSnapshot?
 
     var body: some View {
         NavigationStack {
@@ -73,26 +79,28 @@ struct MemberProfileView: View {
                     Text(loc.t("signup.searchableFooter"))
                 }
 
-                Section(loc.t("profile.section.sync")) {
-                    HStack {
-                        Text(loc.t("profile.sync.status"))
-                        Spacer()
-                        Text(syncStatusLabel)
-                            .foregroundStyle(.secondary)
-                    }
-                    if let lastSynced = syncEngine?.lastSyncedAt {
+                if !isEditing {
+                    Section(loc.t("profile.section.sync")) {
                         HStack {
-                            Text(loc.t("profile.sync.lastSync"))
+                            Text(loc.t("profile.sync.status"))
                             Spacer()
-                            Text(lastSynced, style: .relative)
+                            Text(syncStatusLabel)
                                 .foregroundStyle(.secondary)
                         }
+                        if let lastSynced = syncEngine?.lastSyncedAt {
+                            HStack {
+                                Text(loc.t("profile.sync.lastSync"))
+                                Spacer()
+                                Text(lastSynced, style: .relative)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Button(loc.t("profile.sync.now")) {
+                            Task { await syncEngine?.syncNow() }
+                        }
+                        .disabled(syncEngine?.isSyncing ?? true)
+                        .accessibilityIdentifier("profile_syncNowButton")
                     }
-                    Button(loc.t("profile.sync.now")) {
-                        Task { await syncEngine?.syncNow() }
-                    }
-                    .disabled(syncEngine?.isSyncing ?? true)
-                    .accessibilityIdentifier("profile_syncNowButton")
                 }
             }
             .navigationTitle(loc.t("profile.navTitle"))
@@ -112,16 +120,40 @@ struct MemberProfileView: View {
                         .accessibilityLabel("Ajustes")
                     }
                 }
+                if isEditing {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(loc.t("common.cancel")) {
+                            showDiscardConfirmation = true
+                        }
+                        .accessibilityIdentifier("profile_cancelButton")
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button(isEditing ? loc.t("common.save") : loc.t("common.edit")) {
-                        if isEditing { saveChanges() }
-                        isEditing.toggle()
+                        if isEditing {
+                            saveChanges()
+                            isEditing = false
+                            editSnapshot = nil
+                        } else {
+                            editSnapshot = MemberEditSnapshot(member: member)
+                            isEditing = true
+                        }
                     }
                     .accessibilityIdentifier("profile_editButton")
                 }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .alert(loc.t("profile.cancelEdit.title"), isPresented: $showDiscardConfirmation) {
+                Button(loc.t("profile.cancelEdit.discard"), role: .destructive) {
+                    editSnapshot?.apply(to: member)
+                    editSnapshot = nil
+                    isEditing = false
+                }
+                Button(loc.t("profile.cancelEdit.keepEditing"), role: .cancel) {}
+            } message: {
+                Text(loc.t("profile.cancelEdit.message"))
             }
         }
     }
@@ -191,6 +223,86 @@ struct MemberProfileView: View {
         member.markDirty()
         try? modelContext.save()
         Task { await syncEngine?.syncNow() }
+    }
+}
+
+/// Estado de los campos editables de `Member` en el momento de entrar en
+/// modo edición. `apply(to:)` los restaura si el usuario cancela.
+private struct MemberEditSnapshot {
+    let firstName: String
+    let firstSurname: String
+    let secondSurname: String
+    let email: String
+    let secondaryEmail: String
+    let mobilePhone: String
+    let landlinePhone: String
+    let address: String
+    let postalCode: String
+    let city: String
+    let province: String
+    let entryYear: String
+    let exitYear: String
+    let promotion: String
+    let profession: String
+    let workplace: String
+    let iban: String
+    let facebookUsername: String
+    let instagramUsername: String
+    let xUsername: String
+    let tiktokUsername: String
+    let isSearchable: Bool
+    let photoData: Data?
+
+    init(member: Member) {
+        firstName = member.firstName
+        firstSurname = member.firstSurname
+        secondSurname = member.secondSurname
+        email = member.email
+        secondaryEmail = member.secondaryEmail
+        mobilePhone = member.mobilePhone
+        landlinePhone = member.landlinePhone
+        address = member.address
+        postalCode = member.postalCode
+        city = member.city
+        province = member.province
+        entryYear = member.entryYear
+        exitYear = member.exitYear
+        promotion = member.promotion
+        profession = member.profession
+        workplace = member.workplace
+        iban = member.iban
+        facebookUsername = member.facebookUsername
+        instagramUsername = member.instagramUsername
+        xUsername = member.xUsername
+        tiktokUsername = member.tiktokUsername
+        isSearchable = member.isSearchable
+        photoData = member.photoData
+    }
+
+    func apply(to member: Member) {
+        member.firstName = firstName
+        member.firstSurname = firstSurname
+        member.secondSurname = secondSurname
+        member.email = email
+        member.secondaryEmail = secondaryEmail
+        member.mobilePhone = mobilePhone
+        member.landlinePhone = landlinePhone
+        member.address = address
+        member.postalCode = postalCode
+        member.city = city
+        member.province = province
+        member.entryYear = entryYear
+        member.exitYear = exitYear
+        member.promotion = promotion
+        member.profession = profession
+        member.workplace = workplace
+        member.iban = iban
+        member.facebookUsername = facebookUsername
+        member.instagramUsername = instagramUsername
+        member.xUsername = xUsername
+        member.tiktokUsername = tiktokUsername
+        member.isSearchable = isSearchable
+        member.photoData = photoData
     }
 }
 

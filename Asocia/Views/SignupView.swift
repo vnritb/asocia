@@ -6,13 +6,16 @@ import SwiftData
 /// Orden de operaciones (ver docs/ARQUITECTURA.md):
 /// 1. Validar el formulario: nombre + primer apellido, email y contraseña.
 /// 2. Enviar la solicitud al backend (`apiClient.submitMembershipApplication`),
-///    que crea el registro en estado `pendingApproval` y devuelve un token de sesión.
-/// 3. Guardar el `Member` resultante en SwiftData (local, offline-first) y
-///    cerrar el formulario; `RootView` pasa automáticamente a mostrar la
-///    ficha del socio con el aviso de "pendiente de confirmar".
+///    que crea el registro en estado `pendingApproval`. La respuesta no trae
+///    token todavía: sin sesión no hay Member local que guardar.
+/// 3. El formulario se queda abierto (no se cierra ni se tapa con otra
+///    pantalla): pasa a mostrar un aviso fijo de "pendiente de confirmar" en
+///    la parte superior y deshabilita el envío, mientras sondea en segundo
+///    plano si el alta ya se ha confirmado.
 /// 4. Más adelante, el equipo gestor confirma o rechaza el alta desde el
-///    backoffice; al confirmarla, el indicador provisional desaparece y se
-///    habilita el acceso al Chat.
+///    backoffice; en cuanto el sondeo detecta el cambio, guarda el token y
+///    cierra el formulario dando paso al resto de la aplicación sin que el
+///    usuario tenga que hacer nada más.
 struct SignupView: View {
     @Environment(\.apiClient) private var apiClient
     @Environment(\.modelContext) private var modelContext
@@ -21,11 +24,12 @@ struct SignupView: View {
 
     let onSuccess: () -> Void
 
-    /// En cuanto `/apply` responde con éxito, esto pasa a tener valor y la
-    /// vista deja de mostrar el formulario para mostrar el aviso de
-    /// pendiente — nos quedamos en esta misma pantalla en vez de volver a
-    /// Login, tal y como pide el flujo: mientras no esté validado, el único
-    /// sitio al que se tiene acceso es este formulario/aviso.
+    /// En cuanto `/apply` responde con éxito, esto pasa a tener valor: el
+    /// formulario se queda abierto (con los datos tal y como se enviaron)
+    /// mostrando un aviso de "pendiente de confirmar" en la parte superior,
+    /// en vez de cerrarse o taparlo todo. `.task(id:)` en `body` sondea el
+    /// estado en segundo plano y, en cuanto el equipo gestor confirma el
+    /// alta, entra directamente sin que el usuario tenga que hacer nada.
     @State private var submittedMemberID: UUID?
 
     @State private var photoData: Data?
@@ -87,49 +91,18 @@ struct SignupView: View {
 
     var body: some View {
         NavigationStack {
-            if let submittedMemberID {
-                pendingApprovalView(memberID: submittedMemberID)
-                    .navigationTitle(loc.t("signup.navTitle"))
-                    .navigationBarTitleDisplayMode(.inline)
-            } else {
-                signupForm
-            }
+            signupForm
+        }
+        .task(id: submittedMemberID) {
+            guard let submittedMemberID else { return }
+            await pollPendingStatus(memberID: submittedMemberID)
         }
     }
 
-    /// Se muestra en esta misma pantalla justo después de enviar la
-    /// solicitud, en vez de volver a Login. `.task(id:)` comprueba
-    /// `GET /v1/members/:id/status` (sin token) y, en cuanto el backoffice
-    /// confirma el alta, guarda el authToken y entra directamente — sin
-    /// que el usuario tenga que hacer nada más.
-    @ViewBuilder
-    private func pendingApprovalView(memberID: UUID) -> some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "clock.badge.checkmark")
-                .font(.system(size: 60))
-                .foregroundStyle(.orange)
-            Text(loc.t("signup.pending.title"))
-                .font(.title2.bold())
-            Text(loc.t("signup.pending.message"))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 32)
-            Spacer()
-            Button(loc.t("signup.pending.close")) {
-                dismiss()
-                onSuccess()
-            }
-            .padding(.bottom, 24)
-        }
-        .task(id: memberID) {
-            await pollPendingStatus(memberID: memberID)
-        }
-    }
-
-    /// Reintenta `checkStatus` cada pocos segundos mientras esta pantalla
-    /// esté visible ("sincronizar"). Se cancela solo al desaparecer la
-    /// vista (dismiss), no hace falta gestionarlo a mano.
+    /// Reintenta `checkStatus` cada pocos segundos mientras el formulario
+    /// siga en pantalla con una solicitud enviada ("sincronizar"). Se
+    /// cancela solo si la vista desaparece (p.ej. el usuario pulsa
+    /// Cancelar), no hace falta gestionarlo a mano.
     private func pollPendingStatus(memberID: UUID) async {
         while !Task.isCancelled {
             if let status = try? await apiClient.checkStatus(id: memberID),
@@ -150,6 +123,14 @@ struct SignupView: View {
 
     private var signupForm: some View {
         Form {
+                if submittedMemberID != nil {
+                    Section {
+                        pendingBanner
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
+
                 Section {
                     HStack {
                         Spacer()
@@ -289,25 +270,27 @@ struct SignupView: View {
                     }
                 }
 
-                Section {
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if isProcessing {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text(loc.t("signup.submit"))
-                                .frame(maxWidth: .infinity)
+                if submittedMemberID == nil {
+                    Section {
+                        Button {
+                            Task { await submit() }
+                        } label: {
+                            if isProcessing {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                Text(loc.t("signup.submit"))
+                                    .frame(maxWidth: .infinity)
+                            }
                         }
-                    }
-                    .disabled(!isFormValid || isProcessing)
-                    .accessibilityIdentifier("signup_submitButton")
-                } footer: {
-                    if !isFormValid && !isProcessing {
-                        Text("Completa los campos obligatorios: nombre, primer apellido, email y contraseña (mínimo 6 caracteres)")
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                        .disabled(!isFormValid || isProcessing)
+                        .accessibilityIdentifier("signup_submitButton")
+                    } footer: {
+                        if !isFormValid && !isProcessing {
+                            Text("Completa los campos obligatorios: nombre, primer apellido, email y contraseña (mínimo 6 caracteres)")
+                                .foregroundStyle(.red)
+                                .font(.caption)
+                        }
                     }
                 }
             }
@@ -316,10 +299,35 @@ struct SignupView: View {
             .accessibilityIdentifier("signup_form")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(loc.t("common.cancel")) { dismiss() }
-                        .disabled(isProcessing)
+                    Button(loc.t("common.cancel")) {
+                        dismiss()
+                        // Si ya se había enviado la solicitud, avisamos al
+                        // padre para que recalcule el estado (PendingSignupStore
+                        // ya tiene el id guardado): así Login muestra el aviso
+                        // de "pendiente de confirmar" y sigue sincronizando en
+                        // segundo plano aunque el usuario ya no esté en este
+                        // formulario (ver RootView.checkAuth()).
+                        if submittedMemberID != nil {
+                            onSuccess()
+                        }
+                    }
+                    .disabled(isProcessing)
                 }
             }
+    }
+
+    /// Aviso que se muestra como un elemento más del formulario, justo
+    /// encima de la foto, mientras la solicitud está enviada y a la espera
+    /// de que el equipo gestor la confirme.
+    private var pendingBanner: some View {
+        Label(loc.t("profile.pendingApproval"), systemImage: "clock")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.orange)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .background(Color.orange.opacity(0.15))
+            .accessibilityIdentifier("signup_pendingBanner")
     }
 
     private func submit() async {
@@ -393,10 +401,11 @@ struct SignupView: View {
 
             isProcessing = false
 
-            // Nos quedamos en esta pantalla (no dismiss/onSuccess todavía):
-            // pasa a mostrar el aviso de "pendiente de validar" y, si se
-            // confirma mientras el usuario sigue aquí, entra directamente
-            // sin tener que volver a Login (ver pendingApprovalView(memberID:)).
+            // Nos quedamos en este mismo formulario (no dismiss/onSuccess
+            // todavía): pasa a mostrar el aviso fijo de "pendiente de
+            // confirmar" en la parte superior y, si se confirma mientras el
+            // usuario sigue aquí, entra directamente sin tener que volver a
+            // Login (ver pollPendingStatus(memberID:) y body).
             submittedMemberID = response.member.id
 
         } catch {

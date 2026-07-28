@@ -17,6 +17,7 @@ struct RootView: View {
     @State private var isCheckingAuth = true
     @State private var hasValidAuth = false
     @State private var hasPendingSignup = false
+    @State private var pollTask: Task<Void, Never>?
 
     private var currentMember: Member? { members.first }
 
@@ -55,6 +56,9 @@ struct RootView: View {
         .task {
             await checkAuthentication()
         }
+        .onDisappear {
+            pollTask?.cancel()
+        }
     }
 
     private func checkAuthentication() async {
@@ -66,16 +70,9 @@ struct RootView: View {
         // authToken igual que haría un login manual.
         if !hasValidAuth, let pendingID = PendingSignupStore.memberID {
             hasPendingSignup = true
-            if let status = try? await apiClient.checkStatus(id: pendingID),
-               status.membershipStatus == .active,
-               let token = status.authToken,
-               let memberDTO = status.member {
-                KeychainStore.saveToken(token)
-                modelContext.insert(memberDTO.toMember())
-                try? modelContext.save()
-                PendingSignupStore.clear()
-                hasPendingSignup = false
-                hasValidAuth = true
+            await adoptIfConfirmed(pendingID: pendingID)
+            if !hasValidAuth {
+                startPollingPendingSignup()
             }
         }
 
@@ -111,10 +108,60 @@ struct RootView: View {
         isCheckingAuth = false
     }
 
+    /// Comprueba `GET /v1/members/:id/status` (sin token) y, si el alta ya
+    /// está `active`, adopta el `authToken` y el `Member` recibidos —
+    /// exactamente igual que haría un login manual, pero sin pedir nada al
+    /// usuario.
+    private func adoptIfConfirmed(pendingID: UUID) async {
+        if let status = try? await apiClient.checkStatus(id: pendingID),
+           status.membershipStatus == .active,
+           let token = status.authToken,
+           let memberDTO = status.member {
+            KeychainStore.saveToken(token)
+            modelContext.insert(memberDTO.toMember())
+            try? modelContext.save()
+            PendingSignupStore.clear()
+            hasPendingSignup = false
+            hasValidAuth = true
+        }
+    }
 
+    /// Reintenta `adoptIfConfirmed` cada pocos segundos mientras el usuario
+    /// esté en Login o en el formulario de alta (las dos únicas pantallas a
+    /// las que tiene acceso sin token): así, en cuanto el equipo gestor
+    /// confirme el alta, la app pasa directamente al resto de contenidos sin
+    /// que el usuario tenga que volver a intentar el login.
+    private func startPollingPendingSignup() {
+        pollTask?.cancel()
+        pollTask = Task {
+            while !Task.isCancelled && !hasValidAuth {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { return }
+                guard let pendingID = PendingSignupStore.memberID else {
+                    hasPendingSignup = false
+                    return
+                }
+                await adoptIfConfirmed(pendingID: pendingID)
+            }
+        }
+    }
+
+    /// Se llama al volver de Login (login manual) o del formulario de alta
+    /// (nueva solicitud enviada): recalcula tanto el token como si hay una
+    /// alta pendiente de este dispositivo, y reactiva el sondeo en segundo
+    /// plano si procede.
     private func checkAuth() {
         Task {
             hasValidAuth = await authService.hasValidToken()
+            if hasValidAuth {
+                hasPendingSignup = false
+                pollTask?.cancel()
+            } else {
+                hasPendingSignup = PendingSignupStore.memberID != nil
+                if hasPendingSignup {
+                    startPollingPendingSignup()
+                }
+            }
         }
     }
 }

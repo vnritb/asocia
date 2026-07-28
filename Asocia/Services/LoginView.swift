@@ -28,12 +28,27 @@ struct LoginView: View {
                     Image(systemName: "person.2.circle.fill")
                         .font(.system(size: 80))
                         .foregroundStyle(.blue.gradient)
-                    
+
                     Text("Asocia")
                         .font(.largeTitle.bold())
                 }
                 .padding(.top, 60)
-                
+
+                // Alta enviada desde este dispositivo, todavía sin confirmar:
+                // mientras no llegue el token, esto y "Crear Cuenta" son lo
+                // único a lo que se tiene acceso (ver RootView).
+                if hasPendingSignup {
+                    Label(loc.t("profile.pendingApproval"), systemImage: "clock")
+                        .font(.subheadline.weight(.medium))
+                        .multilineTextAlignment(.leading)
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.orange.opacity(0.15), in: RoundedRectangle(cornerRadius: 10))
+                        .padding(.horizontal, 32)
+                }
+
                 // Formulario de login
                 VStack(spacing: 16) {
                     // Email
@@ -80,15 +95,6 @@ struct LoginView: View {
                     Text(errorMessage)
                         .foregroundColor(.red)
                         .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
-
-                // Alta enviada desde este dispositivo, todavía sin confirmar
-                if hasPendingSignup {
-                    Text("Tu solicitud de alta está pendiente de confirmación. En cuanto el equipo gestor la confirme podrás iniciar sesión con el email y la contraseña que usaste al darte de alta.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                 }
